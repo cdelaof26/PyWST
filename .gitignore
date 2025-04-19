@@ -1,0 +1,13 @@
+
+# Directories
+old
+.idea
+
+# Files
+Automaton.key
+index.html
+index.js
+
+# OS and miscellaneous
+.DS_Store
+*.pyc
