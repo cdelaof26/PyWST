@@ -37,6 +37,10 @@ SOFTWARE.
 
 ### Versioning
 
+#### v0.0.3 Tweaks and fixes
+- Handled several edge cases
+- Improved error message
+
 #### v0.0.2 Tag tokenizer
 
 #### v0.0.1 Initial project

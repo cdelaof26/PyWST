@@ -5,7 +5,7 @@ old
 
 # Files
 Automaton.key
-index.html
+*.html
 index.js
 
 # OS and miscellaneous

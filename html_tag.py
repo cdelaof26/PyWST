@@ -6,8 +6,7 @@ from enum import Enum
 class TagInfo(Enum):
     TAG_NAME = 0
     ATTRIBUTE_NAME = 1
-    ATTRIBUTE_VALUE = 2
-    ATTRIBUTE_VALUE_JS = 3
+    ATTRIBUTE = 2
 
 
 class TagToken:
@@ -20,64 +19,99 @@ class TagToken:
 
 
 _state = 0
+_quote = None
 
 
 def _generate_tokens(data: str) -> list[TagToken]:
-    global _state
-
-    # if _state != 0 and _state != 4:
-    #     raise ValueError("Parsing error")
+    global _state, _quote
 
     generated_tokens: list[TagToken] = []
 
     lexeme = ""
-    for i, c in enumerate(data):
-        lexeme += c
+    i = 0
+    while i < len(data):
+        c = data[i]
+        i += 1
 
         if _state == 0:
             if c == '<':
+                lexeme += c
                 _state = 1
             elif c.isalpha():
+                lexeme += c
                 _state = 4
-            elif c == '"' or c == "'":
-                _state = 6
-            elif c == '{':
-                _state = 6
             elif c not in [' ', '/', '>']:
                 raise_error(data, c, i)
 
         elif _state == 1:
             if c.isalpha():
+                lexeme += c
                 _state = 2
-                continue
-
-            raise_error(data, c, i)
+            else:
+                raise_error(data, c, i)
 
         elif _state == 2:
-            if c == ' ' or c == '>':
-                generated_tokens.append(TagToken(TagInfo.TAG_NAME, lexeme[1:-1]))
+            if c in [' ', '>', '/']:
+                generated_tokens.append(TagToken(TagInfo.TAG_NAME, lexeme[1:]))
                 lexeme = ""
                 _state = 0
-            elif not c.isalpha():
+            elif c == '-' or c.isalnum():
+                lexeme += c
+            else:
                 raise_error(data, c, i)
 
         elif _state == 4:
-            if c == '=':
-                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE_NAME, lexeme[:-1]))
+            if c == '>':
+                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE_NAME, lexeme))
                 lexeme = ""
                 _state = 0
-            elif c != '-' and not c.isalpha():
+            elif c == '=':
+                lexeme += c
+                _state = 8
+            elif c == ' ':
+                _state = 9
+            elif c == '-' or c == ':' or c.isalnum():
+                lexeme += c
+            else:
                 raise_error(data, c, i)
 
         elif _state == 6:
-            if c == lexeme[0]:
-                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE_VALUE, lexeme[1:-1]))
+            lexeme += c
+            if c == _quote or _quote == '{' and c == '}':
+                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE, lexeme))
                 lexeme = ""
                 _state = 0
-            elif lexeme[0] == '{' and c == '}':
-                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE_VALUE_JS, lexeme[1:-1]))
+
+        elif _state == 8:
+            if c in ['"', "'", '{']:
+                lexeme += c
+                _state = 6
+                _quote = c
+            elif c == '=':
+                raise_error(data, c, i)
+            elif c != ' ':
+                lexeme += c
+                _state = 10
+
+        elif _state == 9:
+            if c == '=':
+                lexeme += c
+                _state = 8
+            elif c != ' ':
+                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE, lexeme))
                 lexeme = ""
                 _state = 0
+                i -= 1
+
+        elif _state == 10:
+            if c == ' ' or c == '>':
+                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE, lexeme))
+                lexeme = ""
+                _state = 0
+            elif c not in ['"', "'", '{', '}']:
+                lexeme += c
+            else:
+                raise_error(data, c, i)
 
     return generated_tokens
 

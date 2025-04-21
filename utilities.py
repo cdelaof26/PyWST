@@ -16,11 +16,16 @@ def raise_error(data: str, c: str, i: int, line: int = -1):
     c = escape_whitespace(c)
 
     ex = f"Illegal character '{c}', char.no {i}"
+
+    if i > 49:
+        data = "... " + data[i - 25:i + 25] + " ..."
+        i = 29
+
     if line != -1:
         ex += f", line {line}\n"
         spacing = " " * len(str(line))
         ex += f"  {line}  {data}" + f"\n  {spacing}  " + "-" * (i - 1) + "^"
     else:
-        ex += f"\n    {data}" + f"\n    " + "-" * i + "^"
+        ex += f"\n    {data}" + f"\n    " + "-" * (i - 1) + "^"
 
     raise ValueError(ex)
