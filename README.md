@@ -37,4 +37,6 @@ SOFTWARE.
 
 ### Versioning
 
+#### v0.0.2 Tag tokenizer
+
 #### v0.0.1 Initial project
