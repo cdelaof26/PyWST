@@ -1,8 +1,18 @@
 
-def escape_whitespace(data: str) -> str:
-    for sequence, repl in zip(["\t", "\n", "\r", "\b", "\f"], ["\\t", "\\n", "\\r", "\\b", "\\f"]):
-        data = data.replace(sequence, repl)
-    return data
+# This property will allow any character inside a closing tag.
+# Normally, all closing tags should only include letters, digits and hyphens,
+# however, in some cases the tag might contain whitespace characters.
+#
+ALLOW_ANYTHING_IN_CLOSE_TAGS = False
+
+# Many dynamically generated webpages are missing a few closing tags,
+# with this property on True any error will be omitted.
+#
+IGNORE_MISMATCHING_CLOSING_TAGS = False
+
+# Minifying code will reduce file size and might improve load times
+#
+MINIFY_CODE = True
 
 
 def remove_whitespace(data: str) -> str:
@@ -13,9 +23,9 @@ def remove_whitespace(data: str) -> str:
 
 def raise_error(data: str, c: str, i: int, line: int = -1):
     data = remove_whitespace(data)
-    c = escape_whitespace(c)
+    c = repr(c)
 
-    ex = f"Illegal character '{c}', char.no {i}"
+    ex = f"Illegal character {c}, col {i}"
 
     if i > 49:
         data = "... " + data[i - 25:i + 25] + " ..."

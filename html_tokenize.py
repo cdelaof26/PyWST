@@ -17,7 +17,7 @@ class HTMLToken:
         self.column: int = column
 
     def __str__(self):
-        return "{" f"{self.token_type.name}, {escape_whitespace(self.lexeme)}, {self.line}" "}"
+        return "{" f"{self.token_type.name}, {repr(self.lexeme)}, {self.line}" "}"
 
 
 _state = 0
@@ -29,7 +29,8 @@ def generate_tokens(data: str, line: int = -1) -> list[HTMLToken]:
     global _state, _lexeme, _quote
 
     if _state not in [0, 4, 11, 15]:
-        raise ValueError(f"Parsing error |{_state=}|")
+        if _state != 9 and not ALLOW_ANYTHING_IN_CLOSE_TAGS:
+            raise ValueError(f"Parsing error |{_state=}|")
 
     generated_tokens: list[HTMLToken] = []
 
@@ -115,7 +116,7 @@ def generate_tokens(data: str, line: int = -1) -> list[HTMLToken]:
                 _lexeme = ""
                 _state = 0
 
-            elif not c.isalnum() and c != '-':
+            elif not c.isalnum() and c != '-' and not ALLOW_ANYTHING_IN_CLOSE_TAGS:
                 raise_error(data, c, i, line)
 
         elif _state == 11:
@@ -138,7 +139,7 @@ def generate_tokens(data: str, line: int = -1) -> list[HTMLToken]:
 
         elif _state == 15:
             _lexeme += c
-            if c == _quote or _quote == '{' and c == '}':
+            if c == _quote != '{' or _quote == '{' and c == '}':
                 _quote = None
                 _state = 11
 
@@ -156,12 +157,17 @@ def tokenize_file(file_data: list[str]) -> list[HTMLToken]:
     is_script = False
     processed_script = []
     index_difference = 0
+    first_state_4 = -1
+    first_state_15 = -1
 
     for i, line in enumerate(file_data):
-        if line.startswith(" "):
-            raise ValueError("Please run fix_indent.py or change the indentation to tabs and then try again")
+        if first_state_4 == -1 and _state == 4:
+            first_state_4 = i - 1
 
-        line = re.sub(r"^\t+", "", line)
+        if first_state_15 == -1 and _state == 15:
+            first_state_15 = i - 1
+
+        line = re.sub(r"^[\t ]+", "", line)
 
         if not line.strip():
             continue
@@ -173,12 +179,15 @@ def tokenize_file(file_data: list[str]) -> list[HTMLToken]:
         # QuickFix2: if the line contains an opening and closing script tag then the
         #            tag will be processed separately and replaced with <rps>.
         #            After parsing <rps> the processed tag will be placed back
+        # QuickFix3: if the line contains an opening script tag and JS code, then
+        #            the line is split in two
 
         # tokens += generate_tokens(line, i + 1)
 
         # TODO: Implement QuickFixes for style tag
 
         if "<script" in line and "</script" in line:  # Handle one line script
+            # QF2
             scripts = re.findall("<script.*?>.*?</script.*?>", line)
             for s in scripts:
                 data = re.sub(r"^<script.*?>", "", re.sub(r"</script.*?>$", "", s))
@@ -203,31 +212,43 @@ def tokenize_file(file_data: list[str]) -> list[HTMLToken]:
                     HTMLToken(HTMLTokenType.CLOSING_TAG, i, script_tag_close_start, script_tag_close)
                 ])
 
-        if is_script and not line.startswith("</script"):
+        if is_script and not line.startswith("</script"):  # QF1
             tokens.append(HTMLToken(HTMLTokenType.DATA, i, 0, line))
             continue
 
+        if line.startswith("<script"):  # QF3
+            rest = re.sub("^<script.*?>", "", line)
+            if rest:
+                line = line.replace(rest, "")
+                if line:
+                    file_data.insert(i + 1, rest)
+
         _tokens = generate_tokens(line, i + 1)
         for t in _tokens:
-            if t.token_type == HTMLTokenType.TAG and t.lexeme == "<rps>":
+            if t.token_type == HTMLTokenType.TAG and t.lexeme == "<rps>":  # QF2
                 index_difference += processed_script.pop(0)
                 for rps in processed_script[0]:
                     tokens.append(rps)
                 processed_script.pop(0)
                 continue
 
-            if t.token_type == HTMLTokenType.TAG and t.lexeme.startswith("<script"):
+            if t.token_type == HTMLTokenType.TAG and t.lexeme.startswith("<script"):  # QF1
                 is_script = True
-            if t.token_type == HTMLTokenType.CLOSING_TAG and t.lexeme.startswith("</script"):
+            if t.token_type == HTMLTokenType.CLOSING_TAG and t.lexeme.startswith("</script"):  # QF1
                 is_script = False
 
             t.column += index_difference
             tokens.append(t)
 
     if _state == 4:
-        raise ValueError("Source contains unclosed comments")
+        raise ValueError(
+            "Source contains unclosed comments" + (f" near line {first_state_4}" if first_state_4 != -1 else "")
+        )
 
     if _state == 15:
-        raise ValueError("Source contains unbalanced quotes or curly braces")
+        raise ValueError(
+            "Source contains unbalanced quotes or curly braces"
+            + (f" near line {first_state_15}" if first_state_15 != -1 else "")
+        )
 
     return tokens

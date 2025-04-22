@@ -6,7 +6,7 @@ old
 # Files
 Automaton.key
 *.html
-index.js
+*.js
 
 # OS and miscellaneous
 .DS_Store

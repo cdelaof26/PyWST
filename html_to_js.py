@@ -1,0 +1,263 @@
+from html_tokenize import HTMLTokenType, HTMLToken, tokenize_file
+from html_tag import tokenize_html_token, TagToken, TagInfo
+from utilities import IGNORE_MISMATCHING_CLOSING_TAGS
+from typing import Union, Optional
+from pathlib import Path
+from code import Code
+import re
+
+
+_id = 0
+JS_DECLARATION_STATEMENT = "const NAME = document.createElement('TAG');"
+JS_DECLARATION_STATEMENT_NS = "const NAME = document.createElementNS(URI, 'TAG');"
+JS_BOOLEAN_PROPERTY_SET_STATEMENT = "NAME.PROPERTY = true;"
+JS_PROPERTY_SET_STATEMENT = "NAME.PROPERTY = VALUE;"
+JS_FUNCTION_PROPERTY_SET_STATEMENT = "NAME.setAttribute(PROPERTY, VALUE);"
+JS_APPEND_STATEMENT = "PARENT.appendChild(CHILD);"
+JS_APPEND_TEXT_STATEMENT = "NAME.appendChild(document.createTextNode(DATA));"
+
+# From http://xahlee.info/js/html5_non-closing_tag.html
+SELF_CLOSING_TAGS = [
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
+]
+
+
+def _filter_data_tokens(tokens: list[HTMLToken]) -> list:
+    # Join all continuous DATA tokens and delete empty ones
+    i = 0
+    start = -1
+    data_token = None
+    while i < len(tokens):
+        t: HTMLToken = tokens[i]
+        if t.token_type != HTMLTokenType.DATA:
+            if start == -1:
+                t.lexeme = re.sub(r"\n+", " ", t.lexeme)
+                i += 1
+                continue
+
+            data_token.lexeme = re.sub(r"^\n+", "", re.sub(r"\n+$", "", data_token.lexeme))
+            if data_token.lexeme:
+                tokens = tokens[:start + 1] + tokens[i:]
+                tokens[start] = data_token
+                i = start + 1
+            else:
+                tokens = tokens[:start] + tokens[i:]
+                i = start
+
+            start = -1
+            continue
+
+        if start == -1:
+            data_token = t
+            start = i
+            i += 1
+            continue
+
+        data_token.lexeme += re.sub(r"^\t+", "", t.lexeme)
+        i += 1
+
+    return tokens
+
+
+def _tokenize_tags(tokens: list):
+    for i, token in enumerate(tokens):
+        token_data = tokenize_html_token(tokens[i])
+        if token_data:
+            tokens[i] = token_data
+
+
+def _get_js_name() -> str:
+    global _id
+    n = f"e{_id}"
+    _id += 1
+    return n
+
+
+def create_js_element(name: str, tag: str, namespace_uri: Optional[str] = None) -> str:
+    if namespace_uri is None:
+        return JS_DECLARATION_STATEMENT.replace("NAME", name).replace("TAG", tag)
+    return JS_DECLARATION_STATEMENT_NS.replace("NAME", name).replace("TAG", tag).replace("URI", repr(namespace_uri))
+
+
+def property_name_to_camel_case(tag_property: str) -> str:
+    if "-" not in tag_property:
+        return tag_property
+
+    camel_case = ""
+    next_upper = False
+    for c in tag_property:
+        if c == "-":
+            if next_upper:
+                raise ValueError(f"Multiple hyphen characters together in\n    {tag_property}")
+
+            next_upper = True
+            continue
+
+        if next_upper:
+            camel_case += c.upper()
+            next_upper = False
+            continue
+
+        camel_case += c
+
+    if next_upper:
+        raise ValueError(f"Property name '{tag_property}' ends with hyphen")
+
+    return camel_case
+
+
+def set_boolean_property(name: str, tag_property: str) -> str:
+    # return JS_BOOLEAN_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
+    #    "PROPERTY", property_name_to_camel_case(tag_property))
+
+    return JS_FUNCTION_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
+        "PROPERTY", repr(tag_property)).replace("VALUE", "true")
+
+
+def set_property(name: str, tag_property: str) -> str:
+    equal_position = tag_property.index("=")
+    prop, value = tag_property[:equal_position], tag_property[equal_position + 1:]
+    if value.startswith("{"):
+        value = f"() => {value}"
+    elif not value.startswith("'") and not value.startswith('"'):
+        value = repr(value)
+
+    # return JS_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
+    #     "PROPERTY", property_name_to_camel_case(prop)).replace("VALUE", value)
+
+    return JS_FUNCTION_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
+        "PROPERTY", repr(prop)).replace("VALUE", value)
+
+
+def tag_to_js(tag_data: list[TagToken]) -> tuple[str, str, list[str]]:
+    if not tag_data:
+        raise ValueError("tag_data cannot be empty")
+
+    declared = False
+    element_type = ""
+    name = _get_js_name()
+    js = []
+
+    for d in tag_data:
+        if d.data_type == TagInfo.TAG_NAME:
+            if declared:  # This should happen if the input comes from translate_html
+                raise ValueError(f"Can't create duplicate constant {name}")
+
+            if d.value.lower() in ["svg", "path"]:
+                js.append(create_js_element(name, d.value, "http://www.w3.org/2000/svg"))
+            else:
+                js.append(create_js_element(name, d.value))
+
+            element_type = d.value
+            declared = True
+        elif d.data_type == TagInfo.ATTRIBUTE_NAME:
+            js.append(set_boolean_property(name, d.value))
+        else:
+            js.append(set_property(name, d.value))
+
+    if not declared:
+        raise ValueError("A tag name is required")
+
+    return name, element_type, js
+
+
+def append_child(parent: str, child: str) -> str:
+    return JS_APPEND_STATEMENT.replace("PARENT", parent).replace("CHILD", child)
+
+
+def append_text(name: str, value: str) -> str:
+    return JS_APPEND_TEXT_STATEMENT.replace("NAME", name).replace("DATA", repr(value))
+
+
+def _transcribe_to_js(file_name: str, tokens: list[Union[HTMLToken, list]]) -> Code:
+    assert tokens
+
+    if isinstance(tokens[0], HTMLToken):
+        if tokens[0].token_type == HTMLTokenType.DATA and "DOCTYPE HTML" in tokens[0].lexeme.upper():
+            tokens.pop(0)
+        else:
+            raise ValueError(f"Illegal start of source {tokens[0].lexeme}")
+
+    js = Code()
+    js.append_line(f"function {file_name}()" " {")
+
+    parent_stack = []
+    tag_stack = []
+    base_element = None
+    base_tag = None
+    parent_is_svg = False
+
+    for token in tokens:
+        if isinstance(token, list):
+            element_js_name, tag, code = tag_to_js(token)
+            js.append_all(code)
+
+            if tag == "svg":
+                parent_is_svg = True
+
+            if parent_stack:
+                js.append_line(append_child(parent_stack[-1], element_js_name))
+            elif base_element is None:
+                if tag in SELF_CLOSING_TAGS:
+                    raise ValueError("A self-closing tag cannot be a base component")
+
+                base_element = element_js_name
+                base_tag = tag
+            else:
+                raise ValueError(f"Found another base component (first {base_tag}, second {tag})")
+
+            if tag not in SELF_CLOSING_TAGS:
+                parent_stack.append(element_js_name)
+                tag_stack.append(tag)
+            continue
+
+        if token.token_type == HTMLTokenType.DATA:
+            if re.sub(r"\W+", "", token.lexeme):
+                js.append_line(append_text(parent_stack[-1], token.lexeme))
+            continue
+
+        # HTMLTokenType.CLOSING_TAG
+        tag = token.lexeme[2:-1]
+
+        # After some research, looks like there's no standard way for SVG to represent
+        # self-closing tags and not self-closing tags (some can be both),
+        # so any closing tag will be ignored as long as they are inside an SVG
+        #
+        if tag.lower() == "svg":
+            parent_is_svg = False
+            while tag_stack[-1].lower() != "svg":
+                tag_stack.pop()
+
+        if parent_is_svg:
+            continue
+
+        top = tag_stack.pop()
+        if tag != top:
+            if IGNORE_MISMATCHING_CLOSING_TAGS:
+                tag_stack.append(top)
+                continue
+
+            raise ValueError(f"Found closing tag for '{tag}' but current tag is '{top}', line {token.line}")
+
+        parent_stack.pop()
+
+    js.append_line(f"return {base_element}" ";")
+    js.append_line("}")
+
+    return js
+
+
+def transcribe_html(_file: Path):
+    global _id
+    _id = 0
+    name = _file.name
+    if "." in name:
+        name = name[:name.index(".")]
+    name = name.replace("-", "_").replace(" ", "_")
+
+    with open(_file, "r") as f:
+        data = f.readlines()
+        tokens = tokenize_file(data)
+        tokens = _filter_data_tokens(tokens)
+        _tokenize_tags(tokens)
+        return _transcribe_to_js(name, tokens)

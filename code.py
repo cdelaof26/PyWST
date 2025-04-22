@@ -21,6 +21,10 @@ class Code:
         if line.endswith("{"):
             self.indent_times += 1
 
+    def append_all(self, lines: list[str]):
+        for line in lines:
+            self.append_line(line)
+
     def modify_indent(self, increase: bool):
         self.indent_times += 1 if increase else -1
 

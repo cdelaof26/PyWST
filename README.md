@@ -1,6 +1,6 @@
 # PyWST
 
-**Py** **W**ebScript **T**ranscriptor is a small 
+**Py** **W**ebScript **T**ranscriptor is a 
 pure-python HTML to JavaScript transcriptor.
 
 Its main goal is to provide a way to create 
@@ -33,13 +33,43 @@ SOFTWARE.
 </pre>
 
 ### Requirements
+
 - Python >= 3.9
+
+### Usage
+
+```bash
+# Clone this repo
+git clone https://github.com/cdelaof26/PyWST.git
+
+# Move inside the directory
+cd PyWST
+
+# Transcribe a file
+python3 main.py path/to/file.html
+
+# Transcribe a bunch of files
+python3 main.py path/with/html_files/
+```
+
+### Settings
+
+Currently there are only three modificable parameters 
+(source modification [WIP]) in `utilities.py`:
+- `ALLOW_ANYTHING_IN_CLOSE_TAGS`
+- `IGNORE_MISMATCHING_CLOSING_TAGS`
+- `MINIFY_CODE`
 
 ### Versioning
 
+#### v0.0.4 JS Transcriptor
+- Transcription of single and multiple files
+- Improved self-closing tag detection
+- Improved error messages
+
 #### v0.0.3 Tweaks and fixes
 - Handled several edge cases
-- Improved error message
+- Improved error messages
 
 #### v0.0.2 Tag tokenizer
 

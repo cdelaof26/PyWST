@@ -40,7 +40,9 @@ def _generate_tokens(data: str) -> list[TagToken]:
             elif c.isalpha():
                 lexeme += c
                 _state = 4
-            elif c not in [' ', '/', '>']:
+            elif c == '/':
+                _state = 14
+            elif c != ' ' and c != '>':
                 raise_error(data, c, i)
 
         elif _state == 1:
@@ -51,12 +53,14 @@ def _generate_tokens(data: str) -> list[TagToken]:
                 raise_error(data, c, i)
 
         elif _state == 2:
-            if c in [' ', '>', '/']:
+            if c == ' ' or c == '>':
                 generated_tokens.append(TagToken(TagInfo.TAG_NAME, lexeme[1:]))
                 lexeme = ""
                 _state = 0
             elif c == '-' or c.isalnum():
                 lexeme += c
+            elif c == '/':
+                _state = 12
             else:
                 raise_error(data, c, i)
 
@@ -72,12 +76,14 @@ def _generate_tokens(data: str) -> list[TagToken]:
                 _state = 9
             elif c == '-' or c == ':' or c.isalnum():
                 lexeme += c
+            elif c == '/':
+                _state = 13
             else:
                 raise_error(data, c, i)
 
         elif _state == 6:
             lexeme += c
-            if c == _quote or _quote == '{' and c == '}':
+            if c == _quote != '{' or _quote == '{' and c == '}':
                 generated_tokens.append(TagToken(TagInfo.ATTRIBUTE, lexeme))
                 lexeme = ""
                 _state = 0
@@ -98,7 +104,7 @@ def _generate_tokens(data: str) -> list[TagToken]:
                 lexeme += c
                 _state = 8
             elif c != ' ':
-                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE, lexeme))
+                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE_NAME, lexeme))
                 lexeme = ""
                 _state = 0
                 i -= 1
@@ -113,10 +119,40 @@ def _generate_tokens(data: str) -> list[TagToken]:
             else:
                 raise_error(data, c, i)
 
+        elif _state == 12:
+            if c == '>':
+                generated_tokens.append(TagToken(TagInfo.TAG_NAME, lexeme[1:]))
+                lexeme = ""
+                _state = 0
+                continue
+
+            raise_error(data, c, i)
+
+        elif _state == 13:
+            if c == '>':
+                generated_tokens.append(TagToken(TagInfo.ATTRIBUTE_NAME, lexeme))
+                lexeme = ""
+                _state = 0
+                continue
+
+            raise_error(data, c, i)
+
+        elif _state == 14:
+            if c == '>':
+                _state = 15
+                continue
+
+            raise_error(data, c, i)
+
+        elif _state == 15:
+            raise_error(data, c, i)
+
     return generated_tokens
 
 
 def tokenize_html_token(token: HTMLToken) -> list[TagToken]:
+    global _state
+
     if token.token_type != HTMLTokenType.TAG:
         return []
 
@@ -124,5 +160,8 @@ def tokenize_html_token(token: HTMLToken) -> list[TagToken]:
 
     if _state == 6:
         raise ValueError(f"Unbalanced quote or curly brace in\n    {token.lexeme}")
+
+    if _state == 15:
+        _state = 0
 
     return tokens
