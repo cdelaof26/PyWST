@@ -1,0 +1,80 @@
+#     This is a config sample for PyWST
+# The purpose of this file is provide an scalable and easy way to use PyWST
+# to create JS components based on HTML files.
+#
+# This file can contain several configurations for different directories and files,
+# each configuration block is delimited by the name between square brackets.
+#
+# PATH: Specifies where the files are located
+#       Value: absolute or relative path
+#
+# FILE: Specifies where a file is located relative to PATH
+#       Value: absolute, relative file path or *
+#              * can be only used with BEHAVIOR = return or UN_REPL_ID must have a value
+#
+# BEHAVIOR: Denotes how the component function will behave:
+#     return:  functions will return the component
+#     replace: functions will replace a component given its id.
+#              'replace' requires a REPL_ID for every FILE, ids will be assigned as found
+#
+# REPL_ID: The id of an element that will be replaced by a single component in the configuration
+#          (cannot be used with BEHAVIOR = return)
+#       Value: string
+#
+# UN_REPL_ID: The id of an element that will be replaced by any component in the configuration
+#             (cannot be used with BEHAVIOR = return)
+#       Value: string
+#
+# ONLOAD: Adds an DOMContentLoaded listener to the generated script,
+#         this option requires BEHAVIOR = replace
+#       Value: True or False
+#       Default: False
+#
+# WATCH: Creates a daemon that will transcript files on content change
+#       Value: True or False
+#       Default: False
+#
+# MINIFY_CODE: Determines if the generated code will have format, setting it to True
+#              will remove format reducing file size. Might improve load times.
+#       Value: True or False
+#       Default: True
+#
+# ALLOW_ANYTHING_IN_CLOSE_TAGS: Advanced
+# IGNORE_MISMATCHING_CLOSING_TAGS: Advanced
+#       Value: True or False
+#       Default: False
+#
+# AUTOMATICALLY_DECODE_HTML_ENTITIES: Advanced
+#       Value: True or False
+#       Default: True
+#
+#
+# Properties with a default value can be absent and others can be absent if not required
+#
+# Advanced options are advise to leave as default.
+# Documentation for those options can be found at top of utilities.py
+#
+
+[ConfigName1]
+PATH = /path/to/dir
+FILE = *
+BEHAVIOR = return
+WATCH = True
+
+[ConfigName2]
+PATH = /path/to/dir
+FILE = hello.html
+REPL_ID = elementId1
+
+FILE = world.html
+REPL_ID = elementId2
+
+BEHAVIOR = replace
+WATCH = False
+
+[ConfigName3]
+PATH = ../dir1
+FILE = *
+UN_REPL_ID = data-container
+BEHAVIOR = replace
+ONLOAD = True

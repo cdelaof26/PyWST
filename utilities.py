@@ -1,16 +1,31 @@
 
 # This property will allow any character inside a closing tag.
+#
 # Normally, all closing tags should only include letters, digits and hyphens,
 # however, in some cases the tag might contain whitespace characters.
+#
+# Setting this property to True will ignore those errors.
 #
 ALLOW_ANYTHING_IN_CLOSE_TAGS = False
 
 # Many dynamically generated webpages are missing a few closing tags,
-# with this property on True any error will be omitted.
+# with this option on, any error will be ignored.
+#
+# Enabling this property might cause incorrect results.
 #
 IGNORE_MISMATCHING_CLOSING_TAGS = False
 
-# Minifying code will reduce file size and might improve load times
+# Some pages (mostly old) might include HTML entities to represent
+# UTF-8 characters such as &pound; (£). Setting this property to True will
+# create a function to automatically decode HTML entities when detected.
+#
+# This depends on the web browser character rendering capabilities.
+#
+AUTOMATICALLY_DECODE_HTML_ENTITIES = True
+
+# Minifying code will reduce file size by removing new lines and indentation.
+#
+# Might improve load times with bigger files.
 #
 MINIFY_CODE = True
 

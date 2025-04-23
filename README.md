@@ -6,35 +6,10 @@ pure-python HTML to JavaScript transcriptor.
 Its main goal is to provide a way to create 
 reusable HTML components for static pages.
 
-### Copyright
-
-<pre>
-MIT License
-
-Copyright (c) 2025 @cdelaof26
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-</pre>
-
 ### Requirements
 
 - Python >= 3.9
+- `config.py` requires [Questionary](https://github.com/tmbo/questionary.git)
 
 ### Usage
 
@@ -44,7 +19,11 @@ git clone https://github.com/cdelaof26/PyWST.git
 
 # Move inside the directory
 cd PyWST
+```
 
+#### Using PyWST
+
+```bash
 # Transcribe a file
 python3 main.py path/to/file.html
 
@@ -52,15 +31,44 @@ python3 main.py path/to/file.html
 python3 main.py path/with/html_files/
 ```
 
+#### Using PyWST with options
+
+```bash
+# Install the dependencies
+python3 -m pip install -r config_requirements.txt
+
+# Create a config file
+python3 config.py
+
+# Use PyWST with a config file [WIP]
+python3 main.py -c path/to/config
+```
+
 ### Settings
 
-Currently there are only three modificable parameters 
-(source modification [WIP]) in `utilities.py`:
+Currently, there are four modificable parameters 
+(through source modification [WIP]) in `utilities.py`:
 - `ALLOW_ANYTHING_IN_CLOSE_TAGS`
 - `IGNORE_MISMATCHING_CLOSING_TAGS`
+- `AUTOMATICALLY_DECODE_HTML_ENTITIES`
 - `MINIFY_CODE`
 
+Config files can be created using `config.py`, 
+those files will allow PyWST to remember specific 
+options for different sets of files [WIP].
+
+`config.py` provides an interactive way to create 
+those files, however, [sample](sample) contains more
+information about all available options.
+
+### License
+
+Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
+
 ### Versioning
+
+#### v0.0.5 Config creator module
+- Added `AUTOMATICALLY_DECODE_HTML_ENTITIES` option
 
 #### v0.0.4 JS Transcriptor
 - Transcription of single and multiple files

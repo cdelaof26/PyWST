@@ -1,5 +1,5 @@
+from utilities import MINIFY_CODE, IGNORE_MISMATCHING_CLOSING_TAGS
 from html_to_js import transcribe_html
-from utilities import MINIFY_CODE
 from pathlib import Path
 import logging
 import sys
@@ -14,6 +14,12 @@ def process_html(_file: Path):
             f.write(str(js))
     except ValueError as e:
         logging.info("Error produced in " + str(_file.resolve()))
+        logging.fatal(e.__str__())
+        # raise  # debug
+    except ReferenceError as e:
+        logging.info("Error produced in " + str(_file.resolve()))
+        if IGNORE_MISMATCHING_CLOSING_TAGS:
+            logging.warning("This error might be caused by IGNORE_MISMATCHING_CLOSING_TAGS")
         logging.fatal(e.__str__())
         # raise  # debug
 

@@ -1,17 +1,16 @@
 from html_tokenize import HTMLTokenType, HTMLToken, tokenize_file
 from html_tag import tokenize_html_token, TagToken, TagInfo
-from utilities import IGNORE_MISMATCHING_CLOSING_TAGS
 from typing import Union, Optional
 from pathlib import Path
+from utilities import *
 from code import Code
 import re
 
 
 _id = 0
+_html_entity_detected = False
 JS_DECLARATION_STATEMENT = "const NAME = document.createElement('TAG');"
 JS_DECLARATION_STATEMENT_NS = "const NAME = document.createElementNS(URI, 'TAG');"
-JS_BOOLEAN_PROPERTY_SET_STATEMENT = "NAME.PROPERTY = true;"
-JS_PROPERTY_SET_STATEMENT = "NAME.PROPERTY = VALUE;"
 JS_FUNCTION_PROPERTY_SET_STATEMENT = "NAME.setAttribute(PROPERTY, VALUE);"
 JS_APPEND_STATEMENT = "PARENT.appendChild(CHILD);"
 JS_APPEND_TEXT_STATEMENT = "NAME.appendChild(document.createTextNode(DATA));"
@@ -79,37 +78,7 @@ def create_js_element(name: str, tag: str, namespace_uri: Optional[str] = None) 
     return JS_DECLARATION_STATEMENT_NS.replace("NAME", name).replace("TAG", tag).replace("URI", repr(namespace_uri))
 
 
-def property_name_to_camel_case(tag_property: str) -> str:
-    if "-" not in tag_property:
-        return tag_property
-
-    camel_case = ""
-    next_upper = False
-    for c in tag_property:
-        if c == "-":
-            if next_upper:
-                raise ValueError(f"Multiple hyphen characters together in\n    {tag_property}")
-
-            next_upper = True
-            continue
-
-        if next_upper:
-            camel_case += c.upper()
-            next_upper = False
-            continue
-
-        camel_case += c
-
-    if next_upper:
-        raise ValueError(f"Property name '{tag_property}' ends with hyphen")
-
-    return camel_case
-
-
 def set_boolean_property(name: str, tag_property: str) -> str:
-    # return JS_BOOLEAN_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
-    #    "PROPERTY", property_name_to_camel_case(tag_property))
-
     return JS_FUNCTION_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
         "PROPERTY", repr(tag_property)).replace("VALUE", "true")
 
@@ -121,9 +90,6 @@ def set_property(name: str, tag_property: str) -> str:
         value = f"() => {value}"
     elif not value.startswith("'") and not value.startswith('"'):
         value = repr(value)
-
-    # return JS_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
-    #     "PROPERTY", property_name_to_camel_case(prop)).replace("VALUE", value)
 
     return JS_FUNCTION_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
         "PROPERTY", repr(prop)).replace("VALUE", value)
@@ -143,12 +109,12 @@ def tag_to_js(tag_data: list[TagToken]) -> tuple[str, str, list[str]]:
             if declared:  # This should happen if the input comes from translate_html
                 raise ValueError(f"Can't create duplicate constant {name}")
 
-            if d.value.lower() in ["svg", "path"]:
-                js.append(create_js_element(name, d.value, "http://www.w3.org/2000/svg"))
+            element_type = d.value.lower()
+            if element_type in ["svg", "path"]:
+                js.append(create_js_element(name, element_type, "http://www.w3.org/2000/svg"))
             else:
-                js.append(create_js_element(name, d.value))
+                js.append(create_js_element(name, element_type))
 
-            element_type = d.value
             declared = True
         elif d.data_type == TagInfo.ATTRIBUTE_NAME:
             js.append(set_boolean_property(name, d.value))
@@ -166,6 +132,12 @@ def append_child(parent: str, child: str) -> str:
 
 
 def append_text(name: str, value: str) -> str:
+    global _html_entity_detected
+
+    if AUTOMATICALLY_DECODE_HTML_ENTITIES and re.findall("&.*?;", value):
+        _html_entity_detected = True
+        return JS_APPEND_TEXT_STATEMENT.replace("NAME", name).replace("DATA", f"dec({repr(value)})")
+
     return JS_APPEND_TEXT_STATEMENT.replace("NAME", name).replace("DATA", repr(value))
 
 
@@ -204,7 +176,7 @@ def _transcribe_to_js(file_name: str, tokens: list[Union[HTMLToken, list]]) -> C
                 base_element = element_js_name
                 base_tag = tag
             else:
-                raise ValueError(f"Found another base component (first {base_tag}, second {tag})")
+                raise ReferenceError(f"Found two base components: initial '{base_tag}', second '{tag}'")
 
             if tag not in SELF_CLOSING_TAGS:
                 parent_stack.append(element_js_name)
@@ -217,16 +189,17 @@ def _transcribe_to_js(file_name: str, tokens: list[Union[HTMLToken, list]]) -> C
             continue
 
         # HTMLTokenType.CLOSING_TAG
-        tag = token.lexeme[2:-1]
+        tag = token.lexeme[2:-1].lower()
 
         # After some research, looks like there's no standard way for SVG to represent
         # self-closing tags and not self-closing tags (some can be both),
         # so any closing tag will be ignored as long as they are inside an SVG
         #
-        if tag.lower() == "svg":
+        if tag == "svg":
             parent_is_svg = False
-            while tag_stack[-1].lower() != "svg":
-                tag_stack.pop()
+            if "svg" in tag_stack:
+                while tag_stack[-1] != "svg":
+                    tag_stack.pop()
 
         if parent_is_svg:
             continue
@@ -244,12 +217,19 @@ def _transcribe_to_js(file_name: str, tokens: list[Union[HTMLToken, list]]) -> C
     js.append_line(f"return {base_element}" ";")
     js.append_line("}")
 
+    if AUTOMATICALLY_DECODE_HTML_ENTITIES and _html_entity_detected:
+        # From https://stackoverflow.com/questions/6155595/how-do-i-convert-an-html-entity-number-into-a-character
+        # -using-plain-javascript-o
+        js.append_all(["function dec(data) {", "const e = document.createElement('p');",
+                       "e.innerHTML = data;", "return e.innerHTML;", "}"])
+
     return js
 
 
 def transcribe_html(_file: Path):
-    global _id
+    global _id, _html_entity_detected
     _id = 0
+    _html_entity_detected = False
     name = _file.name
     if "." in name:
         name = name[:name.index(".")]
