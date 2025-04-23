@@ -1,9 +1,9 @@
-from html_tokenize import HTMLTokenType, HTMLToken, tokenize_file
-from html_tag import tokenize_html_token, TagToken, TagInfo
+from parsing.html_tokenize import HTMLTokenType, HTMLToken, tokenize_file
+from parsing.html_tag import tokenize_html_token, TagToken, TagInfo
 from typing import Union, Optional
+from tools.code import Code
 from pathlib import Path
 from utilities import *
-from code import Code
 import re
 
 

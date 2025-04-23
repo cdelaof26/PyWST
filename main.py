@@ -1,5 +1,5 @@
 from utilities import MINIFY_CODE, IGNORE_MISMATCHING_CLOSING_TAGS
-from html_to_js import transcribe_html
+from parsing.html_to_js import transcribe_html
 from pathlib import Path
 import logging
 import sys

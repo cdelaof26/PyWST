@@ -34,6 +34,10 @@ python3 main.py path/with/html_files/
 #### Using PyWST with options
 
 ```bash
+# Move inside the config directory
+# (assuming you are in PyWST)
+cd config
+
 # Install the dependencies
 python3 -m pip install -r config_requirements.txt
 
@@ -58,7 +62,7 @@ those files will allow PyWST to remember specific
 options for different sets of files [WIP].
 
 `config.py` provides an interactive way to create 
-those files, however, [sample](sample) contains more
+those files, however, [sample](config/sample) contains more
 information about all available options.
 
 ### License
@@ -66,6 +70,8 @@ information about all available options.
 Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
+
+#### v0.0.5-1 Improved project structure
 
 #### v0.0.5 Config creator module
 - Added `AUTOMATICALLY_DECODE_HTML_ENTITIES` option

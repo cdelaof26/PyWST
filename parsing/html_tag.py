@@ -1,4 +1,4 @@
-from html_tokenize import HTMLToken, HTMLTokenType
+from parsing.html_tokenize import HTMLToken, HTMLTokenType
 from utilities import *
 from enum import Enum
 

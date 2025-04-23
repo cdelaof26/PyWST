@@ -102,6 +102,7 @@ if __name__ == "__main__":
 
             success, found_files = retrieve_files(files_path)
             if not success:
+                logging.info("No files were found...")
                 break
 
             specify_each_file = questionary.confirm(
