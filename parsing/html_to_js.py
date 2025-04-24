@@ -3,17 +3,11 @@ from parsing.html_tag import tokenize_html_token, TagToken, TagInfo
 from typing import Union, Optional
 from tools.code import Code
 from pathlib import Path
-from utilities import *
+import utilities
 import re
-
 
 _id = 0
 _html_entity_detected = False
-JS_DECLARATION_STATEMENT = "const NAME = document.createElement('TAG');"
-JS_DECLARATION_STATEMENT_NS = "const NAME = document.createElementNS(URI, 'TAG');"
-JS_FUNCTION_PROPERTY_SET_STATEMENT = "NAME.setAttribute(PROPERTY, VALUE);"
-JS_APPEND_STATEMENT = "PARENT.appendChild(CHILD);"
-JS_APPEND_TEXT_STATEMENT = "NAME.appendChild(document.createTextNode(DATA));"
 
 # From http://xahlee.info/js/html5_non-closing_tag.html
 SELF_CLOSING_TAGS = [
@@ -74,13 +68,12 @@ def _get_js_name() -> str:
 
 def create_js_element(name: str, tag: str, namespace_uri: Optional[str] = None) -> str:
     if namespace_uri is None:
-        return JS_DECLARATION_STATEMENT.replace("NAME", name).replace("TAG", tag)
-    return JS_DECLARATION_STATEMENT_NS.replace("NAME", name).replace("TAG", tag).replace("URI", repr(namespace_uri))
+        return f"const {name} = document.createElement('{tag}');"
+    return f"const {name} = document.createElementNS({repr(namespace_uri)}, '{tag}');"
 
 
 def set_boolean_property(name: str, tag_property: str) -> str:
-    return JS_FUNCTION_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
-        "PROPERTY", repr(tag_property)).replace("VALUE", "true")
+    return f"{name}.setAttribute({repr(tag_property)}, true);"
 
 
 def set_property(name: str, tag_property: str) -> str:
@@ -91,8 +84,7 @@ def set_property(name: str, tag_property: str) -> str:
     elif not value.startswith("'") and not value.startswith('"'):
         value = repr(value)
 
-    return JS_FUNCTION_PROPERTY_SET_STATEMENT.replace("NAME", name).replace(
-        "PROPERTY", repr(prop)).replace("VALUE", value)
+    return f"{name}.setAttribute({repr(prop)}, {value});"
 
 
 def tag_to_js(tag_data: list[TagToken]) -> tuple[str, str, list[str]]:
@@ -128,20 +120,23 @@ def tag_to_js(tag_data: list[TagToken]) -> tuple[str, str, list[str]]:
 
 
 def append_child(parent: str, child: str) -> str:
-    return JS_APPEND_STATEMENT.replace("PARENT", parent).replace("CHILD", child)
+    return f"{parent}.appendChild({child});"
 
 
 def append_text(name: str, value: str) -> str:
     global _html_entity_detected
 
-    if AUTOMATICALLY_DECODE_HTML_ENTITIES and re.findall("&.*?;", value):
+    if utilities.AUTOMATICALLY_DECODE_HTML_ENTITIES and re.findall("&.*?;", value):
         _html_entity_detected = True
-        return JS_APPEND_TEXT_STATEMENT.replace("NAME", name).replace("DATA", f"dec({repr(value)})")
+        return f"{name}.appendChild(document.createTextNode(dec({repr(value)})));"
 
-    return JS_APPEND_TEXT_STATEMENT.replace("NAME", name).replace("DATA", repr(value))
+    return f"{name}.appendChild(document.createTextNode({repr(value)}));"
 
 
-def _transcribe_to_js(file_name: str, tokens: list[Union[HTMLToken, list]]) -> Code:
+def _transcribe_to_js(
+        file_name: str, tokens: list[Union[HTMLToken, list]],
+        behavior: str = "", repl_id: Optional[list] = None, un_repl_id: str = "", onload: bool = False
+) -> Code:
     assert tokens
 
     if isinstance(tokens[0], HTMLToken):
@@ -206,7 +201,7 @@ def _transcribe_to_js(file_name: str, tokens: list[Union[HTMLToken, list]]) -> C
 
         top = tag_stack.pop()
         if tag != top:
-            if IGNORE_MISMATCHING_CLOSING_TAGS:
+            if utilities.IGNORE_MISMATCHING_CLOSING_TAGS:
                 tag_stack.append(top)
                 continue
 
@@ -214,20 +209,39 @@ def _transcribe_to_js(file_name: str, tokens: list[Union[HTMLToken, list]]) -> C
 
         parent_stack.pop()
 
-    js.append_line(f"return {base_element}" ";")
+    if behavior == "return":
+        js.append_line(f"return {base_element};")
+    else:
+        element_id = un_repl_id if un_repl_id != "" else repl_id[0]
+        element_id = repr(element_id)
+        js.append_line(f"{base_element}.setAttribute('id', {element_id});")
+        js.append_line(f"document.getElementById({element_id}).replaceWith({base_element});")
+
     js.append_line("}")
 
-    if AUTOMATICALLY_DECODE_HTML_ENTITIES and _html_entity_detected:
+    if utilities.AUTOMATICALLY_DECODE_HTML_ENTITIES and _html_entity_detected:
         # From https://stackoverflow.com/questions/6155595/how-do-i-convert-an-html-entity-number-into-a-character
         # -using-plain-javascript-o
         js.append_all(["function dec(data) {", "const e = document.createElement('p');",
                        "e.innerHTML = data;", "return e.innerHTML;", "}"])
 
+    if onload:
+        js.append_line('document.addEventListener("DOMContentLoaded", () => {')
+        js.append_line(f"{file_name}();")
+        js.append_line("});")
+
     return js
 
 
-def transcribe_html(_file: Path):
+def transcribe_html(_file: Path, config: Optional[dict] = None):
     global _id, _html_entity_detected
+
+    if config is not None:
+        required = ["BEHAVIOR", "REPL_ID", "UN_REPL_ID", "ONLOAD"]
+        config = {key.lower(): value for key, value in config.items() if key in required}
+    else:
+        config = {"behavior": "return", "repl_id": [], "un_repl_id": "", "onload": False}
+
     _id = 0
     _html_entity_detected = False
     name = _file.name
@@ -240,4 +254,4 @@ def transcribe_html(_file: Path):
         tokens = tokenize_file(data)
         tokens = _filter_data_tokens(tokens)
         _tokenize_tags(tokens)
-        return _transcribe_to_js(name, tokens)
+        return _transcribe_to_js(name, tokens, **config)

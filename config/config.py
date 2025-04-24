@@ -19,13 +19,14 @@ def config_not_taken(name: str):
 
 def retrieve_files(path: str) -> tuple[bool, list[str]]:
     try:
-        directories = [Path(path)]
+        parent = Path(path).resolve()
+        directories = [parent]
         _files = []
         while directories:
             directory = directories.pop(0)
             for element in directory.iterdir():
                 if element.is_file() and element.suffix == ".html":
-                    name = str(element.resolve()).replace(path, "")
+                    name = str(element.resolve()).replace(str(parent), "")
                     _files.append(name[1:] if name.startswith("/") else name)
                 elif element.is_dir():
                     directories.append(element)
@@ -64,7 +65,7 @@ if __name__ == "__main__":
     config_file = open(config_file_path, "w")
     config_file.write("#     PyWST config file\n")
     config_file.write("# Generated with config.py\n")
-    config_file.write("# More information at https://github.com/cdelaof26/PyWST/blob/main/sample\n\n")
+    config_file.write("# More information at https://github.com/cdelaof26/PyWST/blob/main/config/sample\n\n")
 
     create_config = True
     configurations_written = 0
@@ -144,10 +145,10 @@ if __name__ == "__main__":
             else:
                 for f, _id in zip(files, repl_id):
                     config_file.write(f"FILE = {f}\n")
-                    config_file.write(f"REPL_ID = {repr(_id)}\n")
+                    config_file.write(f"REPL_ID = {_id}\n")
             config_file.write(f"BEHAVIOR = {behavior_prop}\n")
             if un_repl_id is not None:
-                config_file.write(f"UN_REPL_ID = {repr(un_repl_id)}\n")
+                config_file.write(f"UN_REPL_ID = {un_repl_id}\n")
             config_file.write(f"ONLOAD = {onload_prop}\n")
             config_file.write(f"WATCH = {watch_files}\n")
             config_file.write(f"MINIFY_CODE = {minify_files}\n\n")

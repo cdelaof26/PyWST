@@ -9,7 +9,7 @@ class Code:
         self.minify = False
 
     def append_line(self, line: str):
-        if "}" in line and "};" not in line:
+        if line.endswith("}") or line.startswith("}"):
             self.indent_times -= 1
 
         extra_newline = line.startswith("\n")
@@ -18,8 +18,14 @@ class Code:
 
         self.source.append(("\n" if extra_newline else "") + f"{indent * self.indent_times}{line}")
 
-        if line.endswith("{"):
-            self.indent_times += 1
+        for struct in ["if", "for", "while", "function"]:
+            # if not re.sub(struct + r" *?\(.+?\) *?{?.*?", "", line):
+            if line.startswith(struct):
+                self.indent_times += 1
+                break
+        else:
+            if line.endswith("{"):
+                self.indent_times += 1
 
     def append_all(self, lines: list[str]):
         for line in lines:

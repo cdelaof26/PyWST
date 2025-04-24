@@ -1,3 +1,5 @@
+from pathlib import Path
+import re
 
 # This property will allow any character inside a closing tag.
 #
@@ -30,6 +32,20 @@ AUTOMATICALLY_DECODE_HTML_ENTITIES = True
 MINIFY_CODE = True
 
 
+def set_property(n: int, b: bool):
+    global ALLOW_ANYTHING_IN_CLOSE_TAGS, IGNORE_MISMATCHING_CLOSING_TAGS
+    global AUTOMATICALLY_DECODE_HTML_ENTITIES, MINIFY_CODE
+
+    if n == 0:
+        ALLOW_ANYTHING_IN_CLOSE_TAGS = b
+    elif n == 1:
+        IGNORE_MISMATCHING_CLOSING_TAGS = b
+    elif n == 2:
+        AUTOMATICALLY_DECODE_HTML_ENTITIES = b
+    else:
+        MINIFY_CODE = b
+
+
 def remove_whitespace(data: str) -> str:
     for sequence in ["\t", "\n", "\r", "\b", "\f"]:
         data = data.replace(sequence, " ")
@@ -54,3 +70,154 @@ def raise_error(data: str, c: str, i: int, line: int = -1):
         ex += f"\n    {data}" + f"\n    " + "-" * (i - 1) + "^"
 
     raise ValueError(ex)
+
+
+def list_html_files(initial_dir: Path) -> list[Path]:
+    if not initial_dir.is_dir():
+        return []
+
+    directories = [initial_dir]
+    files = []
+    while directories:
+        directory = directories.pop(0)
+        for element in directory.iterdir():
+            if element.is_file() and element.suffix == ".html":
+                files.append(element)
+            elif element.is_dir():
+                directories.append(element)
+
+    return files
+
+
+def _verify_name(name: str):
+    if name and not re.sub(r".+", "", name) and name[-1] == "]":
+        return
+
+    raise ValueError(f"Invalid block name '{name}'")
+
+
+def _verify_property(prop_value: str, data: dict) -> any:
+    equal_index = prop_value.index("=")
+    prop, value = prop_value[:equal_index].strip(), prop_value[equal_index + 1:].strip()
+
+    if prop not in ["FILE", "REPL_ID"] and prop in data:
+        raise ValueError(f"Duplicated key '{prop}'")
+
+    if prop == "BEHAVIOR":
+        if value not in ["return", "replace"]:
+            raise ValueError(f"Invalid value '{value}' for BEHAVIOR in {data['NAME']}")
+
+        return value
+    elif prop == "PATH":
+        p = Path(value)
+        if not p.exists() or not p.is_dir():
+            raise ValueError(f"Specified PATH is not a directory or doesn't exist for {data['NAME']}\n    {p}")
+
+        return p
+    elif prop == "FILE":
+        if value == "*":
+            if data['BEHAVIOR'] == "return" or "UN_REPL_ID" in data:
+                return value
+
+            raise ValueError(f"FILE = * is not allowed with behavior = replace or undefined UN_REPL_ID property "
+                             f"for {data['NAME']}")
+
+        p = data['PATH']
+        f = Path(value)
+        if f.exists() and f.is_file():
+            return f
+
+        f = p.joinpath(value)
+        if f.exists() and f.is_file():
+            return f
+
+        raise ValueError(f"Specified FILE is not a file or doesn't exist for {data['NAME']}\n    {value}")
+    elif prop == "REPL_ID" or prop == "UN_REPL_ID":
+        if data['BEHAVIOR'] == "return":
+            raise ValueError(f"REPL_ID or UN_REPL_ID cannot be used with BEHAVIOR = return for {data['NAME']}")
+
+        if value and value[0].isalpha() and re.sub(r"[\w.:_-]+", "", value) == "":
+            return value
+
+        raise ValueError(f"Invalid REPL_ID or UN_REPL_ID value '{value}' for {data['NAME']}")
+
+    if value.lower() in ["true", "false"]:
+        return value.lower() == "true"
+
+    raise ValueError(f"Invalid value '{value}' for {data['NAME']}")
+
+
+def _parse_block(block) -> dict:
+    data = {"NAME": re.findall(r"\[.+]", block)[0]}
+
+    path = re.findall(r"PATH ?= ?.+", block)
+    if len(path) != 1:
+        raise ValueError(f"Missing PATH property or found multiple definitions for {data['NAME']}")
+    data["PATH"] = _verify_property(path[0], data)
+
+    behavior = re.findall("BEHAVIOR ?= ?.+", block)
+    if not behavior:
+        raise ValueError(f"Missing BEHAVIOR property for {data['NAME']}")
+    data["BEHAVIOR"] = _verify_property(behavior[0], data)
+
+    un_repl_id = re.findall("UN_REPL_ID ?= ?.+", block)
+    if un_repl_id:
+        data["UN_REPL_ID"] = _verify_property(un_repl_id[0], data)
+
+    files = re.findall("FILE ?= ?.+", block)
+    if not files:
+        raise ValueError(f"Missing FILE property for {data['NAME']}")
+    data["FILE"] = "*" if files[0][-1] == "*" else [_verify_property(f, data) for f in files]
+
+    block = re.sub("UN_REPL_ID ?= ?.+", "", block)
+    repl_id = re.findall("REPL_ID ?= ?.+", block)
+    files_l, repl_id_l = len(repl_id), len(files)
+    if repl_id:
+        if files_l < repl_id_l:
+            raise ValueError(f"Too few FILE properties in {data['NAME']} (FILE={files_l}, REPL_ID={repl_id_l})")
+        if files_l > repl_id_l:
+            raise ValueError(f"Too many REPL_ID properties in {data['NAME']} (FILE={files_l}, REPL_ID={repl_id_l})")
+
+        data["REPL_ID"] = [_verify_property(r, data) for r in repl_id]
+    elif data["BEHAVIOR"] == "replace" and "UN_REPL_ID" not in data:
+        raise ValueError(f"BEHAVIOR = replace requires a REPL_ID for every FILE "
+                         f"or UN_REPL_ID must have a value in {data['NAME']}")
+
+    for prop in ["ONLOAD", "WATCH", "MINIFY_CODE", "ALLOW_ANYTHING_IN_CLOSE_TAGS",
+                 "IGNORE_MISMATCHING_CLOSING_TAGS", "AUTOMATICALLY_DECODE_HTML_ENTITIES"]:
+        found = re.findall(f"{prop} ?= ?.+", block)
+        if found:
+            data[prop] = _verify_property(found[0], data)
+
+    if "ONLOAD" in data and data["ONLOAD"] and data["BEHAVIOR"] == "return":
+        raise ValueError(f"ONLOAD = True cannot be used with BEHAVIOR = return for {data['NAME']}")
+
+    return data
+
+
+def parse_config(_file: Path) -> list[dict]:
+    with open(_file, "r") as f:
+        data = f.read()
+
+    config_blocks = []
+    data = re.sub(r"#.*\n", "", data)
+    data = data.split("\n")
+
+    for line in data:
+        if not line:
+            continue
+
+        if line.startswith("["):
+            _verify_name(line)
+            config_blocks.append(line)
+            continue
+
+        if not config_blocks:
+            raise ValueError("Missing block name")
+
+        config_blocks[-1] += f"\n{line}"
+
+    if not config_blocks:
+        raise ValueError("No data")
+
+    return [_parse_block(block) for block in config_blocks]
