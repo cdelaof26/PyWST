@@ -151,6 +151,13 @@ def generate_tokens(data: str, line: int = -1) -> list[HTMLToken]:
     return generated_tokens
 
 
+def reset_html_tokenize():
+    global _state, _lexeme, _quote
+    _state = 0
+    _lexeme = ""
+    _quote = None
+
+
 def tokenize_file(file_data: list[str]) -> list[HTMLToken]:
     tokens = []
 

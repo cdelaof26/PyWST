@@ -11,6 +11,7 @@ reusable HTML components for static pages.
 - Python >= 3.9
 - `config.py` requires [Questionary](https://github.com/tmbo/questionary.git)
 - Some functions in `main.py` require [watchdog](https://github.com/gorakhargosh/watchdog)
+  - watchdog might require Python >= 3.10
 
 ### Usage
 
@@ -64,6 +65,8 @@ information about all available options.
 Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
+
+#### v0.0.7 File watcher
 
 #### v0.0.6 Config parser
 - Created config parser

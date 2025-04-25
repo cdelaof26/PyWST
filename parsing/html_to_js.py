@@ -1,5 +1,5 @@
-from parsing.html_tokenize import HTMLTokenType, HTMLToken, tokenize_file
-from parsing.html_tag import tokenize_html_token, TagToken, TagInfo
+from parsing.html_tokenize import HTMLTokenType, HTMLToken, tokenize_file, reset_html_tokenize
+from parsing.html_tag import tokenize_html_token, TagToken, TagInfo, reset_html_tag_tokenize
 from typing import Union, Optional
 from tools.code import Code
 from pathlib import Path
@@ -79,9 +79,7 @@ def set_boolean_property(name: str, tag_property: str) -> str:
 def set_property(name: str, tag_property: str) -> str:
     equal_position = tag_property.index("=")
     prop, value = tag_property[:equal_position], tag_property[equal_position + 1:]
-    if value.startswith("{"):
-        value = f"() => {value}"
-    elif not value.startswith("'") and not value.startswith('"'):
+    if value.startswith("{") or not value.startswith("'") and not value.startswith('"'):
         value = repr(value)
 
     return f"{name}.setAttribute({repr(prop)}, {value});"
@@ -248,6 +246,9 @@ def transcribe_html(_file: Path, config: Optional[dict] = None):
     if "." in name:
         name = name[:name.index(".")]
     name = name.replace("-", "_").replace(" ", "_")
+
+    reset_html_tokenize()
+    reset_html_tag_tokenize()
 
     with open(_file, "r") as f:
         data = f.readlines()

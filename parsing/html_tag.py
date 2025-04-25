@@ -150,6 +150,12 @@ def _generate_tokens(data: str) -> list[TagToken]:
     return generated_tokens
 
 
+def reset_html_tag_tokenize():
+    global _state, _quote
+    _state = 0
+    _quote = None
+
+
 def tokenize_html_token(token: HTMLToken) -> list[TagToken]:
     global _state
 

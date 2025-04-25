@@ -30,7 +30,9 @@
 #       Value: True or False
 #       Default: False
 #
-# WATCH: Creates a daemon that will transcript files on content change
+# WATCH: Creates a daemon that will transcript files on content change.
+#        Any relative FILE outside PATH will not be transcribed, a workaround is to create
+#        a new configuration block to include those files.
 #       Value: True or False
 #       Default: False
 #

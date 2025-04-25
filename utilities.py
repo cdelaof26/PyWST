@@ -32,7 +32,15 @@ AUTOMATICALLY_DECODE_HTML_ENTITIES = True
 MINIFY_CODE = True
 
 
-def set_property(n: int, b: bool):
+_PROPERTIES = {
+    "ALLOW_ANYTHING_IN_CLOSE_TAGS": False,
+    "IGNORE_MISMATCHING_CLOSING_TAGS": False,
+    "AUTOMATICALLY_DECODE_HTML_ENTITIES": True,
+    "MINIFY_CODE": True
+}
+
+
+def _set_property(n: int, b: bool):
     global ALLOW_ANYTHING_IN_CLOSE_TAGS, IGNORE_MISMATCHING_CLOSING_TAGS
     global AUTOMATICALLY_DECODE_HTML_ENTITIES, MINIFY_CODE
 
@@ -44,6 +52,12 @@ def set_property(n: int, b: bool):
         AUTOMATICALLY_DECODE_HTML_ENTITIES = b
     else:
         MINIFY_CODE = b
+
+
+def update_properties(data_block: dict):
+    for i, name_default in enumerate(_PROPERTIES.items()):
+        name, default = name_default
+        _set_property(i, data_block[name] if name in data_block else default)
 
 
 def remove_whitespace(data: str) -> str:
@@ -113,7 +127,7 @@ def _verify_property(prop_value: str, data: dict) -> any:
         if not p.exists() or not p.is_dir():
             raise ValueError(f"Specified PATH is not a directory or doesn't exist for {data['NAME']}\n    {p}")
 
-        return p
+        return p.resolve()
     elif prop == "FILE":
         if value == "*":
             if data['BEHAVIOR'] == "return" or "UN_REPL_ID" in data:
@@ -125,11 +139,11 @@ def _verify_property(prop_value: str, data: dict) -> any:
         p = data['PATH']
         f = Path(value)
         if f.exists() and f.is_file():
-            return f
+            return f.resolve()
 
         f = p.joinpath(value)
         if f.exists() and f.is_file():
-            return f
+            return f.resolve()
 
         raise ValueError(f"Specified FILE is not a file or doesn't exist for {data['NAME']}\n    {value}")
     elif prop == "REPL_ID" or prop == "UN_REPL_ID":
