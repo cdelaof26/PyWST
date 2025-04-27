@@ -193,6 +193,7 @@ def _transcribe_to_js(
             if "svg" in tag_stack:
                 while tag_stack[-1] != "svg":
                     tag_stack.pop()
+                    parent_stack.pop()
 
         if parent_is_svg:
             continue
@@ -224,9 +225,7 @@ def _transcribe_to_js(
                        "e.innerHTML = data;", "return e.innerHTML;", "}"])
 
     if onload:
-        js.append_line('document.addEventListener("DOMContentLoaded", () => {')
-        js.append_line(f"{file_name}();")
-        js.append_line("});")
+        js.append_line('document.addEventListener("DOMContentLoaded", () => ' f"{file_name}()" ");")
 
     return js
 

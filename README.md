@@ -66,6 +66,9 @@ Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
 
+#### v0.0.7-1 Minor tweaks
+- Fixed incorrectly placement of elements if an SVG was involved
+
 #### v0.0.7 File watcher
 
 #### v0.0.6 Config parser

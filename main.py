@@ -23,7 +23,11 @@ def process_html(_file: Path, config: Optional[dict] = None):
             f.write(str(js))
 
         end_time = time.time()
-        logging.info(f"{_file.name} processed in {end_time - start_time:.4f} seconds")
+        elapsed_time = end_time - start_time
+        if elapsed_time > 1:
+            logging.info(f"{_file.name} processed in {elapsed_time: .2f} seconds")
+        else:
+            logging.info(f"{_file.name} processed in {elapsed_time * 1000: .0f} ms")
     except ValueError as e:
         logging.info("Error produced in " + str(_file.resolve()))
         logging.fatal(e.__str__())
@@ -58,14 +62,14 @@ def watch_files(block: dict):
     def process(src_path: str):
         _lock.acquire()
         utilities.update_properties(block)
-        f = Path(src_path).resolve()
-        if f.suffix == ".html" and (any_file or f in block["FILE"]):
+        _f = Path(src_path).resolve()
+        if _f.suffix == ".html" and (any_file or _f in block["FILE"]):
             if "REPL_ID" in block:
-                f_index = block["FILE"].index(f)
+                f_index = block["FILE"].index(_f)
                 block["FILE"].append(block["FILE"].pop(f_index))
                 block["REPL_ID"].append(block["REPL_ID"].pop(f_index))
 
-            process_html(f, block)
+            process_html(_f, block)
         _lock.release()
 
     class TranscriptEventHandler(FileSystemEventHandler):
