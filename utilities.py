@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import re
 
 # This property will allow any character inside a closing tag.
@@ -110,6 +111,24 @@ def _verify_name(name: str):
     raise ValueError(f"Invalid block name '{name}'")
 
 
+def _valid_js_params(_params: str) -> tuple[list, bool]:
+    if not _params:
+        return [], True
+
+    if "," not in _params:
+        return [], False
+
+    split = _params.split(",")
+    params = []
+    for p in split:
+        p = p.strip()
+        params.append(p)
+        if re.sub(r"[a-zA-Z_]\w+", "", p):
+            return [], False
+
+    return params, True
+
+
 def _verify_property(prop_value: str, data: dict) -> any:
     equal_index = prop_value.index("=")
     prop, value = prop_value[:equal_index].strip(), prop_value[equal_index + 1:].strip()
@@ -150,10 +169,20 @@ def _verify_property(prop_value: str, data: dict) -> any:
         if data['BEHAVIOR'] == "return":
             raise ValueError(f"REPL_ID or UN_REPL_ID cannot be used with BEHAVIOR = return for {data['NAME']}")
 
-        if value and value[0].isalpha() and re.sub(r"[\w.:_-]+", "", value) == "":
+        if prop == "REPL_ID" and not value:
+            return value
+
+        if value and re.sub(r"[a-zA-Z][\w.:_-]+", "", value) == "":
             return value
 
         raise ValueError(f"Invalid REPL_ID or UN_REPL_ID value '{value}' for {data['NAME']}")
+
+    elif prop == "PARAMS":
+        parameters, valid = _valid_js_params(value)
+        if not valid:
+            raise ValueError(f"Specified JS parameters ({value}) are invalid in {data['NAME']}")
+
+        return parameters
 
     if value.lower() in ["true", "false"]:
         return value.lower() == "true"
@@ -184,18 +213,32 @@ def _parse_block(block) -> dict:
     data["FILE"] = "*" if files[0][-1] == "*" else [_verify_property(f, data) for f in files]
 
     block = re.sub("UN_REPL_ID ?= ?.+", "", block)
-    repl_id = re.findall("REPL_ID ?= ?.+", block)
-    files_l, repl_id_l = len(repl_id), len(files)
+    repl_id = re.findall("REPL_ID ?= ?.*", block)
+    files_l, repl_id_l = len(files), len(repl_id)
     if repl_id:
+        if "UN_REPL_ID" in data:
+            raise ValueError(f"REPL_ID cannot be use with UN_REPL_ID. Problem found in {data['NAME']}")
         if files_l < repl_id_l:
             raise ValueError(f"Too few FILE properties in {data['NAME']} (FILE={files_l}, REPL_ID={repl_id_l})")
         if files_l > repl_id_l:
-            raise ValueError(f"Too many REPL_ID properties in {data['NAME']} (FILE={files_l}, REPL_ID={repl_id_l})")
+            raise ValueError(f"Too few REPL_ID properties in {data['NAME']} (FILE={files_l}, REPL_ID={repl_id_l})")
 
         data["REPL_ID"] = [_verify_property(r, data) for r in repl_id]
     elif data["BEHAVIOR"] == "replace" and "UN_REPL_ID" not in data:
         raise ValueError(f"BEHAVIOR = replace requires a REPL_ID for every FILE "
                          f"or UN_REPL_ID must have a value in {data['NAME']}")
+
+    params = re.findall("PARAMS ?= ?.*", block)
+    if params:
+        data["PARAMS"] = [_verify_property(p, data) for p in params]
+        params_l = len(params)
+        if params_l != 1:
+            if files_l < params_l:
+                raise ValueError(f"Too few FILE properties in {data['NAME']} (FILE={files_l}, PARAMS={params_l})")
+            if files_l > params_l:
+                raise ValueError(f"Too few PARAMS properties in {data['NAME']} (FILE={files_l}, PARAMS={params_l})")
+        elif params_l == 1:
+            logging.info(f"All FILE will use the specified PARAMS in {data['NAME']}")
 
     for prop in ["ONLOAD", "WATCH", "MINIFY_CODE", "ALLOW_ANYTHING_IN_CLOSE_TAGS",
                  "IGNORE_MISMATCHING_CLOSING_TAGS", "AUTOMATICALLY_DECODE_HTML_ENTITIES"]:

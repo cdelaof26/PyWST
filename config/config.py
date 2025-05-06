@@ -9,8 +9,30 @@ def valid_path(directory: str) -> bool:
     return p.exists() and p.is_dir()
 
 
+def valid_un_id(element_id: str) -> bool:
+    return element_id and re.sub(r"[a-zA-Z][\w.:_-]+", "", element_id) == ""
+
+
 def valid_id(element_id: str) -> bool:
-    return element_id and element_id[0].isalpha() and re.sub(r"[\w.:_-]+", "", element_id) == ""
+    if not element_id:
+        return True
+
+    return re.sub(r"[a-zA-Z][\w.:_-]+", "", element_id) == ""
+
+
+def valid_js_params(_params: str) -> bool:
+    if not _params:
+        return True
+
+    if "," not in _params:
+        return False
+
+    split = _params.split(",")
+    for p in split:
+        if re.sub(r"[a-zA-Z_]\w+", "", p.strip()):
+            return False
+
+    return True
 
 
 def config_not_taken(name: str):
@@ -94,8 +116,22 @@ if __name__ == "__main__":
             ).skip_if(behavior_prop == "return", default=False).unsafe_ask()
 
             un_repl_id = questionary.text(
-                "Enter the elementId", validate=valid_id
+                "Enter the elementId", validate=valid_un_id
             ).skip_if(not use_un_repl_id).unsafe_ask()
+
+            _use_params = questionary.select(
+                "Do you want to specify parameters for every component?",
+                choices=["Yes",
+                         "No, I want to specify only one set of parameters for all components",
+                         "No, my components do not require parameters"]
+            ).unsafe_ask()
+
+            use_single_params_set = "one set" in _use_params
+            use_params = "Yes" in _use_params or use_single_params_set
+
+            single_params = questionary.text(
+                "Enter the parameters separated by comma", validate=valid_js_params
+            ).skip_if(not use_single_params_set).unsafe_ask()
 
             files_path = questionary.path(
                 "Where are the HTML files stored?", default=file_data["saving_path"], validate=valid_path
@@ -108,13 +144,17 @@ if __name__ == "__main__":
 
             specify_each_file = questionary.confirm(
                 "Would you like to specify each file?", default=False
-            ).skip_if(behavior_prop == "replace" and not use_un_repl_id, default=True).unsafe_ask()
+            ).skip_if(
+                behavior_prop == "replace" and not use_un_repl_id or (use_params and not use_single_params_set),
+                default=True
+            ).unsafe_ask()
 
             files = questionary.checkbox(
                 "Select all the files to include", choices=found_files
             ).skip_if(not specify_each_file, default=["*"]).unsafe_ask()
 
             repl_id = []
+            params = []
             if not use_un_repl_id and behavior_prop == "replace":
                 for f in files:
                     repl_id.append(
@@ -122,6 +162,13 @@ if __name__ == "__main__":
                             f"Enter the elementId '{f}' replaces", validate=valid_id
                         ).unsafe_ask()
                     )
+
+                    if use_params and not use_single_params_set:
+                        params.append(
+                            questionary.text(
+                                f"Enter the parameters '{f}' takes separated by comma", validate=valid_js_params
+                            ).unsafe_ask()
+                        )
 
             onload_prop = questionary.confirm(
                 "Would you like to add DOMContentLoaded listener event to every component?", default=False
@@ -142,13 +189,23 @@ if __name__ == "__main__":
             if not repl_id:
                 for f in files:
                     config_file.write(f"FILE = {f}\n")
-            else:
+            elif not use_params:
                 for f, _id in zip(files, repl_id):
                     config_file.write(f"FILE = {f}\n")
                     config_file.write(f"REPL_ID = {_id}\n")
+            else:
+                for f, _id, param in zip(files, repl_id, params):
+                    config_file.write(f"FILE = {f}\n")
+                    config_file.write(f"REPL_ID = {_id}\n")
+                    config_file.write(f"PARAMS = {param}\n")
+
             config_file.write(f"BEHAVIOR = {behavior_prop}\n")
+
             if un_repl_id is not None:
                 config_file.write(f"UN_REPL_ID = {un_repl_id}\n")
+            if single_params is not None:
+                config_file.write(f"PARAMS = {single_params}\n")
+
             config_file.write(f"ONLOAD = {onload_prop}\n")
             config_file.write(f"WATCH = {watch_files}\n")
             config_file.write(f"MINIFY_CODE = {minify_files}\n\n")

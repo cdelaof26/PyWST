@@ -14,6 +14,19 @@ SELF_CLOSING_TAGS = [
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
 ]
 
+LISTENERS = [
+    "abort", "afterprint", "animationend", "animationiteration", "animationstart", "beforeprint", "beforeunload",
+    "blur", "canplay", "canplaythrough", "change", "click", "contextmenu", "copy", "cut", "dblclick", "drag",
+    "dragend", "dragenter", "dragleave", "dragover", "dragstart", "drop", "durationchange", "ended", "error", "focus",
+    "focusin", "focusout", "fullscreenchange", "fullscreenerror", "hashchange", "input", "invalid", "keydown",
+    "keypress", "keyup", "load", "loadeddata", "loadedmetadata", "loadstart", "message", "mousedown", "mouseenter",
+    "mouseleave", "mousemove", "mouseover", "mouseout", "mouseup", "mousewheel", "offline", "online", "open",
+    "pagehide", "pageshow", "paste", "pause", "play", "playing", "popstate", "progress", "ratechange", "resize",
+    "reset", "scroll", "search", "seeked", "seeking", "select", "show", "stalled", "storage", "submit", "suspend",
+    "timeupdate", "toggle", "touchcancel", "touchend", "touchmove", "touchstart", "transitionend", "unload",
+    "volumechange", "waiting", "wheel"
+]
+
 
 def _filter_data_tokens(tokens: list[HTMLToken]) -> list:
     # Join all continuous DATA tokens and delete empty ones
@@ -76,16 +89,24 @@ def set_boolean_property(name: str, tag_property: str) -> str:
     return f"{name}.setAttribute({repr(tag_property)}, true);"
 
 
-def set_property(name: str, tag_property: str) -> str:
+def set_property(name: str, tag_property: str, params: bool = False) -> str:
     equal_position = tag_property.index("=")
     prop, value = tag_property[:equal_position], tag_property[equal_position + 1:]
     if value.startswith("{") or not value.startswith("'") and not value.startswith('"'):
         value = repr(value)
 
+    if params and re.sub(r"\${.*?}", "", value) != value:
+        value = f"`{value[1:-1]}`"
+
+    if prop.startswith("on") and prop[2:] in LISTENERS:
+        if value.startswith('"'):
+            value = value[1:-1]
+        return f"{name}.addEventListener('{prop[2:]}', (evt) => {value});"
+
     return f"{name}.setAttribute({repr(prop)}, {value});"
 
 
-def tag_to_js(tag_data: list[TagToken]) -> tuple[str, str, list[str]]:
+def tag_to_js(tag_data: list[TagToken], params: bool = False) -> tuple[str, str, list[str]]:
     if not tag_data:
         raise ValueError("tag_data cannot be empty")
 
@@ -96,7 +117,7 @@ def tag_to_js(tag_data: list[TagToken]) -> tuple[str, str, list[str]]:
 
     for d in tag_data:
         if d.data_type == TagInfo.TAG_NAME:
-            if declared:  # This should happen if the input comes from translate_html
+            if declared:  # This shouldn't happen if the input comes from translate_html
                 raise ValueError(f"Can't create duplicate constant {name}")
 
             element_type = d.value.lower()
@@ -109,7 +130,7 @@ def tag_to_js(tag_data: list[TagToken]) -> tuple[str, str, list[str]]:
         elif d.data_type == TagInfo.ATTRIBUTE_NAME:
             js.append(set_boolean_property(name, d.value))
         else:
-            js.append(set_property(name, d.value))
+            js.append(set_property(name, d.value, params))
 
     if not declared:
         raise ValueError("A tag name is required")
@@ -121,19 +142,25 @@ def append_child(parent: str, child: str) -> str:
     return f"{parent}.appendChild({child});"
 
 
-def append_text(name: str, value: str) -> str:
+def append_text(name: str, value: str, params: bool = False) -> str:
     global _html_entity_detected
+
+    value = repr(value)
+
+    if params and re.sub(r"\${.*?}", "", value) != value:
+        value = f"`{value[1:-1]}`"
 
     if utilities.AUTOMATICALLY_DECODE_HTML_ENTITIES and re.findall("&.*?;", value):
         _html_entity_detected = True
-        return f"{name}.appendChild(document.createTextNode(dec({repr(value)})));"
+        return f"{name}.appendChild(document.createTextNode(dec({value})));"
 
-    return f"{name}.appendChild(document.createTextNode({repr(value)}));"
+    return f"{name}.appendChild(document.createTextNode({value}));"
 
 
 def _transcribe_to_js(
         file_name: str, tokens: list[Union[HTMLToken, list]],
-        behavior: str = "", repl_id: Optional[list] = None, un_repl_id: str = "", onload: bool = False
+        behavior: str = "", repl_id: Optional[list] = None, un_repl_id: str = "", onload: bool = False,
+        params: Optional[list] = None
 ) -> Code:
     assert tokens
 
@@ -143,8 +170,35 @@ def _transcribe_to_js(
         else:
             raise ValueError(f"Illegal start of source {tokens[0].lexeme}")
 
+    defined_active_script = False
+    defined_element_to_replace = False
+    element_id = None
+
     js = Code()
-    js.append_line(f"function {file_name}()" " {")
+    if params is None:
+        js.append_line(f"function {file_name}()" " {")
+    elif behavior == "return":
+        js.append_line(f"function {file_name}({', '.join(params[0])})" " {")
+    elif (repl_id is None or not repl_id[0]) and not un_repl_id:
+        defined_active_script = True
+        js.append_all([
+            f"function {file_name}()" " {", "let currentScript;",
+            "const html_scripts = document.querySelectorAll('script');",
+            "for (let _i = 0; _i < html_scripts.length; _i++) " "{",
+            f"if (/.*{file_name}\\.js/g.test(html_scripts[_i].src)) " "{",
+            "currentScript = html_scripts[_i];", "break;", "}", "}"
+        ])
+
+        for p in params[0]:
+            js.append_line(f"const {p} = currentScript.getAttribute({repr(p)});")
+    else:
+        defined_element_to_replace = True
+        js.append_line(f"function {file_name}()" " {")
+        element_id = un_repl_id if un_repl_id != "" else repl_id[0]
+        element_id = repr(element_id)
+        js.append_line(f"const myElementToRepl = document.getElementById({element_id});")
+        for p in params[0]:
+            js.append_line(f"const {p} = myElementToRepl.getAttribute({repr(p)});")
 
     parent_stack = []
     tag_stack = []
@@ -154,7 +208,7 @@ def _transcribe_to_js(
 
     for token in tokens:
         if isinstance(token, list):
-            element_js_name, tag, code = tag_to_js(token)
+            element_js_name, tag, code = tag_to_js(token, params and params[0])
             js.append_all(code)
 
             if tag == "svg":
@@ -171,14 +225,15 @@ def _transcribe_to_js(
             else:
                 raise ReferenceError(f"Found two base components: initial '{base_tag}', second '{tag}'")
 
-            if tag not in SELF_CLOSING_TAGS:
+            if tag not in SELF_CLOSING_TAGS and tag != "path":
+                # There are probably more problematic SVG tags
                 parent_stack.append(element_js_name)
                 tag_stack.append(tag)
             continue
 
         if token.token_type == HTMLTokenType.DATA:
             if re.sub(r"\W+", "", token.lexeme):
-                js.append_line(append_text(parent_stack[-1], token.lexeme))
+                js.append_line(append_text(parent_stack[-1], token.lexeme, params and params[0]))
             continue
 
         # HTMLTokenType.CLOSING_TAG
@@ -210,11 +265,20 @@ def _transcribe_to_js(
 
     if behavior == "return":
         js.append_line(f"return {base_element};")
-    else:
-        element_id = un_repl_id if un_repl_id != "" else repl_id[0]
-        element_id = repr(element_id)
+    elif un_repl_id or repl_id[0]:
+        if element_id is None:
+            element_id = un_repl_id if un_repl_id != "" else repl_id[0]
+            element_id = repr(element_id)
+
         js.append_line(f"{base_element}.setAttribute('id', {element_id});")
-        js.append_line(f"document.getElementById({element_id}).replaceWith({base_element});")
+        if defined_element_to_replace:
+            js.append_line(f"myElementToRepl.replaceWith({base_element});")
+        else:
+            js.append_line(f"document.getElementById({element_id}).replaceWith({base_element});")
+    elif not defined_active_script:
+        js.append_line(f"document.currentScript.replaceWith({base_element});")
+    else:
+        js.append_line(f"currentScript.replaceWith({base_element});")
 
     js.append_line("}")
 
@@ -225,7 +289,11 @@ def _transcribe_to_js(
                        "e.innerHTML = data;", "return e.innerHTML;", "}"])
 
     if onload:
-        js.append_line('document.addEventListener("DOMContentLoaded", () => ' f"{file_name}()" ");")
+        js.append_all([
+            "if (document.readyState === 'loading') {",
+            'document.addEventListener("DOMContentLoaded", () => ' f"{file_name}()" ");",
+            "} else {", f"{file_name}();", "}"
+        ])
 
     return js
 
@@ -234,10 +302,10 @@ def transcribe_html(_file: Path, config: Optional[dict] = None):
     global _id, _html_entity_detected
 
     if config is not None:
-        required = ["BEHAVIOR", "REPL_ID", "UN_REPL_ID", "ONLOAD"]
+        required = ["BEHAVIOR", "REPL_ID", "UN_REPL_ID", "ONLOAD", "PARAMS"]
         config = {key.lower(): value for key, value in config.items() if key in required}
     else:
-        config = {"behavior": "return", "repl_id": [], "un_repl_id": "", "onload": False}
+        config = {"behavior": "return", "repl_id": [], "un_repl_id": "", "onload": False, "params": []}
 
     _id = 0
     _html_entity_detected = False

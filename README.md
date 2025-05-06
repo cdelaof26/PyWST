@@ -4,13 +4,14 @@
 pure-python HTML to JavaScript transcriptor.
 
 Its main goal is to provide a way to create 
-reusable HTML components for static pages.
+reusable HTML components for static pages, however 
+it also can be used to convert web pages into JS.
 
 ### Requirements
 
 - Python >= 3.9
-- `config.py` requires [Questionary](https://github.com/tmbo/questionary.git)
-- Some functions in `main.py` require [watchdog](https://github.com/gorakhargosh/watchdog)
+- `config.py` requires of [Questionary](https://github.com/tmbo/questionary.git)
+- Some functions in `main.py` require of [watchdog](https://github.com/gorakhargosh/watchdog)
   - watchdog might require Python >= 3.10
 
 ### Usage
@@ -52,7 +53,7 @@ python3 main.py -c path/to/config
 
 ### Settings
 
-Config files can be created using `config.py`, 
+Configuration files can be created using `config.py`, 
 these files will allow PyWST to process different 
 sets of files with specific options.
 
@@ -60,11 +61,82 @@ sets of files with specific options.
 those files, however, [sample](config/sample) contains more
 information about all available options.
 
+### Using events
+<details>
+<summary>How to use parameters</summary>
+
+To use an event inside a function, said function must have `evt`
+as parameter as shown below.
+
+```html
+<!-- function_name must receive `evt` as parameter -->
+<button onclick="function_name(evt)"></button>
+```
+
+```js
+// The name in the definition doesn't have to be `evt`
+function function_name(myEvent) {
+    // Do somthing
+}
+```
+</details>
+
+### Using component parameters
+
+<details>
+<summary>How to use parameters</summary>
+
+> [!IMPORTANT]
+> At the moment this only works with [configuration files](#settings)
+
+Parameters can be used inside an HTML by writing `${paramName}` 
+inside an attribute or text block, for example:
+
+```html
+<!-- MyComponent.html -->
+
+<div id="myDiv">
+    <p class="${myClass}">
+        ${textAsParameter}
+    </p>
+</div>
+```
+
+To tell PyWST to add those parameters, you will need to 
+add `PARAMS` for every `FILE` specified in your config file.
+
+```
+...
+FILE = MyComponent.html
+PARAMS = myClass, textAsParameter
+...
+```
+
+If you are using `BEHAVIOR = replace`, then the element to 
+replace needs to have the parameters and values as attributes 
+as following:
+
+```html
+<div id="idToReplace" myClass="bg-green-100" textAsParameter="Hello World">
+    ...
+</div>
+```
+
+</details>
+
 ### License
 
 Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
+
+#### v0.0.8 Additional configuration and fixes
+- Fixed event listeners
+- Added component parameters
+- Fixed properties of components in a same config block getting
+  mixed
+- `REPL_ID` is optional in some cases
+- Fixed multiple `path` SVG
 
 #### v0.0.7-1 Minor tweaks
 - Fixed incorrectly placement of elements if an SVG was involved

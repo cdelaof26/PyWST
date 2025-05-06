@@ -57,6 +57,8 @@ def watch_files(block: dict):
         process_html(f, block)
         if "REPL_ID" in block:
             block["REPL_ID"].append(block["REPL_ID"].pop(0))
+        if "PARAMS" in block:
+            block["PARAMS"].append(block["PARAMS"].pop(0))
     _lock.release()
 
     def process(src_path: str):
@@ -66,8 +68,10 @@ def watch_files(block: dict):
         if _f.suffix == ".html" and (any_file or _f in block["FILE"]):
             if "REPL_ID" in block:
                 f_index = block["FILE"].index(_f)
-                block["FILE"].append(block["FILE"].pop(f_index))
-                block["REPL_ID"].append(block["REPL_ID"].pop(f_index))
+                block["FILE"].insert(0, block["FILE"].pop(f_index))
+                block["REPL_ID"].insert(0, block["REPL_ID"].pop(f_index))
+                if "PARAMS" in block:
+                    block["PARAMS"].insert(0, block["PARAMS"].pop(f_index))
 
             process_html(_f, block)
         _lock.release()
@@ -110,6 +114,8 @@ def process_config(_file: Path):
                 process_html(f, block)
                 if "REPL_ID" in block:
                     block["REPL_ID"].append(block["REPL_ID"].pop(0))
+                if "PARAMS" in block:
+                    block["PARAMS"].append(block["PARAMS"].pop(0))
     except ValueError as e:
         logging.info("Error produced in " + str(_file.resolve()))
         logging.fatal(e.__str__())

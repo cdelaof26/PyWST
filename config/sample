@@ -15,15 +15,36 @@
 # BEHAVIOR: Denotes how the component function will behave:
 #     return:  functions will return the component
 #     replace: functions will replace a component given its id.
-#              'replace' requires a REPL_ID for every FILE, ids will be assigned as found
+#              'replace' requires a REPL_ID for every FILE, ids will be assigned as found.
+#              If REPL_ID is empty, the script tag will be replaced with the component.
 #
 # REPL_ID: The id of an element that will be replaced by a single component in the configuration
-#          (cannot be used with BEHAVIOR = return)
-#       Value: string
+#          (cannot be used with BEHAVIOR = return or UN_REPL_ID)
+#       Value: string, can be empty
 #
 # UN_REPL_ID: The id of an element that will be replaced by any component in the configuration
-#             (cannot be used with BEHAVIOR = return)
+#             (cannot be used with BEHAVIOR = return or REPL_ID)
 #       Value: string
+#
+# PARAMS: A list of JavaScript parameters that the generated function will take.
+#         There needs to be PARAMS as many FILE are specified.
+#
+#         In order to use a parameter specified in PARAMS inside an HTML file, it needs to be defined
+#         as ${myParameter} (like JS template literals) inside an attribute or in a text node. For example
+#             HTML
+#                     <p id="${myCustomId}" class="my css classes">${myCustomText}</p>
+#
+#             Config
+#                     FILE = /path/to/file.html
+#                     PARAMS = myCustomId, myCustomText
+#
+#                     FILE = /path/to/file1.html
+#                     PARAMS =
+#
+#         If BEHAVIOR = replace, then the element to replace needs to have the attributes specified within as follows.
+#             <div id="idToReplace" myCustomId="newId" myCustomText="Hello World"> ... </div>
+#
+#       Value: list separated by commas, can be empty
 #
 # ONLOAD: Adds an DOMContentLoaded listener to the generated script,
 #         this option requires BEHAVIOR = replace
@@ -67,9 +88,11 @@ WATCH = True
 PATH = /path/to/dir
 FILE = hello.html
 REPL_ID = elementId1
+PARAMS = elementId, myJSProperty, myText
 
 FILE = world.html
 REPL_ID = elementId2
+PARAMS = elementId
 
 BEHAVIOR = replace
 WATCH = False
@@ -78,5 +101,12 @@ WATCH = False
 PATH = ../dir1
 FILE = *
 UN_REPL_ID = data-container
+BEHAVIOR = replace
+ONLOAD = True
+
+[ConfigName4]
+PATH = ../dir2
+FILE = *
+REPL_ID =  # The replacement id is empty so the script tags will be replaced
 BEHAVIOR = replace
 ONLOAD = True
