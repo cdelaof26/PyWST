@@ -21,6 +21,7 @@
 # REPL_ID: The id of an element that will be replaced by a single component in the configuration
 #          (cannot be used with BEHAVIOR = return or UN_REPL_ID)
 #       Value: string, can be empty
+#       Note: if empty, the script holding the src will be replaced with the generated component
 #
 # UN_REPL_ID: The id of an element that will be replaced by any component in the configuration
 #             (cannot be used with BEHAVIOR = return or REPL_ID)

@@ -28,13 +28,15 @@ cd PyWST
 
 ```bash
 # Transcribe a file
-python3 main.py path/to/file.html
+python3 main.py -f path/to/file.html
 
 # Transcribe a bunch of files
-python3 main.py path/with/html_files/
+python3 main.py -f path/with/html_files/
 ```
 
 #### Using PyWST with options
+
+- Configuration file
 
 ```bash
 # Move inside the config directory
@@ -48,8 +50,45 @@ python3 -m pip install -r config_requirements.txt
 python3 config.py
 
 # Use PyWST with a config file
-python3 main.py -c path/to/config
+python3 main.py -c -f path/to/config
 ```
+
+<details>
+
+<summary>CLI parameters</summary>
+
+| Option             | Description                                                               | Value                    | Config file equivalent               | Notes                                                    |
+|--------------------|---------------------------------------------------------------------------|--------------------------|--------------------------------------|----------------------------------------------------------|
+| `-c` `--config`    | Specifies that the file is a config file                                  | Path to config file      |                                      | If present, any other option will be ignored except `-f` |
+| `-f` `--file`      | Config, directory or HTML file path                                       | Path to HTML file        | `FILE` or `PATH` for directories     |                                                          |
+| `-b` `--behavior`  | What the script does, return or replace HTMLElements                      | `ret` or `rep`           | `BEHAVIOR`                           | default is `ret`                                         |
+| `-id` `--idrepl`   | Replacement ID                                                            | String                   | `REPL_ID`                            |                                                          |
+| `-uid` `--uidrepl` | Replacement ID for all components                                         | String                   | `UN_REPL_ID`                         |                                                          |
+| `-p` `--params`    | Parameters used inside the HTML                                           | List separated by commas | `PARAMS`                             |                                                          |
+| `-o` `--onload`    | Whether the script should run onload                                      | `yes` or `no`            | `ONLOAD`                             | Requires `--behavior rep`, default is `no`               |
+| `-w` `--watch`     | Whether PyWST should watch for filesystem changes                         | `yes` or `no`            | `WATCH`                              | default is `no`                                          |
+| `-m` `--minify`    | Whether PyWST should minify generated scripts                             | `yes` or `no`            | `MINIFY_CODE`                        | default is `yes`                                         |
+| `--ictag`          | Whether PyWST should ignore uncommon characters inside closing tags       | `yes` or `no`            | `ALLOW_ANYTHING_IN_CLOSE_TAGS`       | default is `no`                                          |
+| `--mctag`          | Whether PyWST should ignore mismatching closing tags                      | `yes` or `no`            | `IGNORE_MISMATCHING_CLOSING_TAGS`    | default is `no`                                          |
+| `--entdec`         | Whether PyWST should add a function to decode HTML entities when detected | `yes` or `no`            | `AUTOMATICALLY_DECODE_HTML_ENTITIES` | default is `yes`                                         |
+
+- Usage examples
+
+```bash
+# Watch file.html for changes and disable minifying 
+python3 main.py -w yes -m no -f /home/user/file.html
+
+# Ignore invalid characters in closing tags and mismatching closing tags
+python3 main.py --ictag yes --mctag yes -f /home/user/generated.html
+
+# Process all files in /home/user/, generated scripts will replace my-component-id
+python3 main.py -b rep --idrepl my-component-id -f /home/user/
+
+# Add parameters to the component (script tag will be replaced)
+python3 main.py --behavior rep --idrepl "" --params "id, articleTitle, articleText" --file "/home/user/my webpage.html"
+```
+
+</details>
 
 ### Settings
 
@@ -86,9 +125,6 @@ function function_name(myEvent) {
 <details>
 <summary>How to use parameters</summary>
 
-> [!IMPORTANT]
-> At the moment this only works with [configuration files](#settings)
-
 Parameters can be used inside an HTML by writing `${paramName}` 
 inside an attribute or text block, for example:
 
@@ -106,10 +142,16 @@ To tell PyWST to add those parameters, you will need to
 add `PARAMS` for every `FILE` specified in your config file.
 
 ```
+# ConfigFile
 ...
 FILE = MyComponent.html
 PARAMS = myClass, textAsParameter
 ...
+```
+
+```bash
+# Or use --params as CLI parameter 
+python3 main.py --params "myClass, textAsParameter" --file MyComponent.html 
 ```
 
 If you are using `BEHAVIOR = replace`, then the element to 
@@ -129,6 +171,8 @@ as following:
 Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
+
+#### v0.0.9 CLI arguments and fixes
 
 #### v0.0.8 Additional configuration and fixes
 - Fixed event listeners

@@ -21,15 +21,14 @@ def valid_id(element_id: str) -> bool:
 
 
 def valid_js_params(_params: str) -> bool:
+    _params = _params.strip()
     if not _params:
         return True
 
-    if "," not in _params:
-        return False
-
     split = _params.split(",")
     for p in split:
-        if re.sub(r"[a-zA-Z_]\w+", "", p.strip()):
+        p = p.strip()
+        if not p or re.sub(r"[a-zA-Z_]\w+", "", p):
             return False
 
     return True
@@ -47,7 +46,7 @@ def retrieve_files(path: str) -> tuple[bool, list[str]]:
         while directories:
             directory = directories.pop(0)
             for element in directory.iterdir():
-                if element.is_file() and element.suffix == ".html":
+                if element.is_file() and element.suffix.lower() == ".html":
                     name = str(element.resolve()).replace(str(parent), "")
                     _files.append(name[1:] if name.startswith("/") else name)
                 elif element.is_dir():
@@ -133,13 +132,22 @@ if __name__ == "__main__":
                 "Enter the parameters separated by comma", validate=valid_js_params
             ).skip_if(not use_single_params_set).unsafe_ask()
 
-            files_path = questionary.path(
-                "Where are the HTML files stored?", default=file_data["saving_path"], validate=valid_path
-            ).unsafe_ask()
+            files_not_found = True
+            while files_not_found:
+                files_path = questionary.path(
+                    "Where are the HTML files stored?", default=file_data["saving_path"], validate=valid_path
+                ).unsafe_ask()
 
-            success, found_files = retrieve_files(files_path)
-            if not success:
-                logging.info("No files were found...")
+                success, found_files = retrieve_files(files_path)
+                if success:
+                    files_not_found = False
+                    break
+
+                logging.info("No HTML files were found...")
+                if not questionary.confirm("Do you want to try again?").unsafe_ask():
+                    break
+
+            if files_not_found:
                 break
 
             specify_each_file = questionary.confirm(

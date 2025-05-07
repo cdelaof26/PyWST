@@ -3,13 +3,14 @@ from typing import Optional
 from pathlib import Path
 import utilities
 import threading
+import argparse
 import logging
 import time
-import sys
 
 
 _lock = threading.Lock()
 _observers = []
+_threads = []
 
 
 def process_html(_file: Path, config: Optional[dict] = None):
@@ -95,35 +96,31 @@ def watch_files(block: dict):
     observer.join()
 
 
-def process_config(_file: Path):
-    threads = []
+def process_config_block(block: dict):
+    global _threads
 
-    try:
-        config_data = utilities.parse_config(_file)
-        for block in config_data:
-            if "WATCH" in block and block["WATCH"]:
-                t = threading.Thread(target=watch_files, args=(block, ))
-                t.start()
-                threads.append(t)
-                continue
+    if "WATCH" in block and block["WATCH"]:
+        t = threading.Thread(target=watch_files, args=(block,))
+        t.start()
+        _threads.append(t)
+        return
 
-            utilities.update_properties(block)
-            files = block["FILE"] if block["FILE"] != "*" else utilities.list_html_files(block["PATH"])
+    utilities.update_properties(block)
+    files = block["FILE"] if block["FILE"] != "*" else utilities.list_html_files(block["PATH"])
 
-            for f in files:
-                process_html(f, block)
-                if "REPL_ID" in block:
-                    block["REPL_ID"].append(block["REPL_ID"].pop(0))
-                if "PARAMS" in block:
-                    block["PARAMS"].append(block["PARAMS"].pop(0))
-    except ValueError as e:
-        logging.info("Error produced in " + str(_file.resolve()))
-        logging.fatal(e.__str__())
-        # raise  # debug
+    for _f in files:
+        process_html(_f, block)
+        if "REPL_ID" in block:
+            block["REPL_ID"].append(block["REPL_ID"].pop(0))
+        if "PARAMS" in block:
+            block["PARAMS"].append(block["PARAMS"].pop(0))
 
-    if threads:
+
+def wait_threads():
+    global _threads, _observers
+    if _threads:
         try:
-            for t in threads:
+            for t in _threads:
                 t.join()
         except KeyboardInterrupt:
             pass
@@ -132,41 +129,77 @@ def process_config(_file: Path):
                 obs.stop()
 
 
+def process_config(_file: Path):
+    try:
+        config_data = utilities.parse_config(_file)
+    except ValueError as e:
+        logging.info("Error produced in " + str(_file.resolve()))
+        logging.fatal(e.__str__())
+        # raise  # debug
+        return
+
+    for block in config_data:
+        process_config_block(block)
+
+    wait_threads()
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(module)s:%(levelname)s: %(message)s", datefmt="%d %b %H:%M:%S"
     )
 
-    args_no = len(sys.argv) - 1
+    args_parser = argparse.ArgumentParser(prog="main.py", description="Python HTML to JS transcriptor")
+    bool_choices = ["yes", "no"]
 
-    if args_no < 1:
-        logging.fatal("A config file, an HTML file or directory to parse is required")
+    args_parser.add_argument("-c", "--config", action="store_true", help="Specifies that a file is a config file")
+    args_parser.add_argument("-f", "--file", action="append", required=True,
+                             help="Specify a config, directory or HTML file path")
+    args_parser.add_argument("-b", "--behavior", default="ret",
+                             help="What the script does, return or replace HTMLElements")
+    args_parser.add_argument("-id", "--idrepl", action="append", help="Replacement ID")
+    args_parser.add_argument("-uid", "--uidrepl", help="Replacement ID for all components")
+    args_parser.add_argument("-p", "--params", help="Parameters used inside the HTML")
+    args_parser.add_argument("-o", "--onload", choices=bool_choices, help="Whether the script should run onload")
+    args_parser.add_argument("-w", "--watch", choices=bool_choices,
+                             help="Whether PyWST should watch for filesystem changes")
+    args_parser.add_argument("-m", "--minify", choices=bool_choices,
+                             help="Whether PyWST should minify generated scripts")
+    args_parser.add_argument("--ictag", choices=bool_choices,
+                             help="Whether PyWST should ignore invalid characters inside closing tags")
+    args_parser.add_argument("--mctag", choices=bool_choices,
+                             help="Whether PyWST should ignore mismatching closing tags")
+    args_parser.add_argument("--entdec", choices=bool_choices,
+                             help="Whether PyWST should add a function to decode HTML entities")
+
+    arguments = args_parser.parse_args()
+
+    read_config = arguments.config
+    amount_of_files = len(arguments.file)
+    if amount_of_files != 1 and read_config:
+        logging.fatal("Only one config file can be specified")
         exit(1)
 
-    read_config = False
-    if args_no == 2:
-        if sys.argv[1] != "-c":
-            logging.fatal(f"Invalid option '{sys.argv[1]}'")
+    if read_config:
+        file = Path()
+        if not file.exists():
+            logging.fatal(f"The specified route '{file}' doesn't exist")
             exit(1)
 
-        read_config = True
-        sys.argv[1], sys.argv[2] = sys.argv[2], sys.argv[1]
-
-    file = Path(sys.argv[1])
-    if not file.exists():
-        logging.fatal(f"The specified route '{file}' doesn't exist")
-        exit(1)
-
-    if file.is_file():
-        if read_config:
-            process_config(file)
-        else:
-            process_html(file)
-            exit(0)
-    elif file.is_dir():
-        if read_config:
+        if file.is_dir():
             logging.fatal("Specified path is not a config file")
             exit(1)
 
-        for path in utilities.list_html_files(file):
-            process_html(path)
+        process_config(file)
+        exit(0)
+
+    try:
+        config_args = utilities.args_to_config(arguments)
+        # print(config_args)
+    except ValueError as e:
+        logging.fatal(e.__str__())
+        # raise  # debug
+        exit(1)
+
+    process_config_block(config_args)
+    wait_threads()

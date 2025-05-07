@@ -1,13 +1,13 @@
+from argparse import Namespace
+from typing import Optional
 from pathlib import Path
 import logging
 import re
 
-# This property will allow any character inside a closing tag.
+# Setting this property will allow any character inside a closing tag.
 #
 # Normally, all closing tags should only include letters, digits and hyphens,
 # however, in some cases the tag might contain whitespace characters.
-#
-# Setting this property to True will ignore those errors.
 #
 ALLOW_ANYTHING_IN_CLOSE_TAGS = False
 
@@ -96,7 +96,7 @@ def list_html_files(initial_dir: Path) -> list[Path]:
     while directories:
         directory = directories.pop(0)
         for element in directory.iterdir():
-            if element.is_file() and element.suffix == ".html":
+            if element.is_file() and element.suffix.lower() == ".html":
                 files.append(element)
             elif element.is_dir():
                 directories.append(element)
@@ -112,19 +112,17 @@ def _verify_name(name: str):
 
 
 def _valid_js_params(_params: str) -> tuple[list, bool]:
+    _params = _params.strip()
     if not _params:
         return [], True
-
-    if "," not in _params:
-        return [], False
 
     split = _params.split(",")
     params = []
     for p in split:
         p = p.strip()
-        params.append(p)
-        if re.sub(r"[a-zA-Z_]\w+", "", p):
+        if not p or re.sub(r"[a-zA-Z_]\w+", "", p):
             return [], False
+        params.append(p)
 
     return params, True
 
@@ -144,7 +142,7 @@ def _verify_property(prop_value: str, data: dict) -> any:
     elif prop == "PATH":
         p = Path(value)
         if not p.exists() or not p.is_dir():
-            raise ValueError(f"Specified PATH is not a directory or doesn't exist for {data['NAME']}\n    {p}")
+            raise ValueError(f"Specified PATH is not a directory or doesn't exist in {data['NAME']}\n    {p}")
 
         return p.resolve()
     elif prop == "FILE":
@@ -164,7 +162,7 @@ def _verify_property(prop_value: str, data: dict) -> any:
         if f.exists() and f.is_file():
             return f.resolve()
 
-        raise ValueError(f"Specified FILE is not a file or doesn't exist for {data['NAME']}\n    {value}")
+        raise ValueError(f"Specified FILE is not a file or doesn't exist in {data['NAME']}\n    {value}")
     elif prop == "REPL_ID" or prop == "UN_REPL_ID":
         if data['BEHAVIOR'] == "return":
             raise ValueError(f"REPL_ID or UN_REPL_ID cannot be used with BEHAVIOR = return for {data['NAME']}")
@@ -278,3 +276,52 @@ def parse_config(_file: Path) -> list[dict]:
         raise ValueError("No data")
 
     return [_parse_block(block) for block in config_blocks]
+
+
+def args_to_config(args: Namespace) -> Optional[dict]:
+    config_block = "[ConfigArgs]\n"
+
+    file0 = Path(args.file[0])
+
+    if len(args.file) == 1 and file0.is_dir():
+        config_block += f"PATH = {file0.resolve()}\n"
+        config_block += f"FILE = *\n"
+    else:
+        config_block += "PATH = .\n"
+        for str_f in args.file:
+            f = Path(str_f)
+            if f.is_dir():
+                raise ValueError("You may specify either a directory or multiple files but not both")
+
+            config_block += f"FILE = {str_f}\n"
+
+    if args.idrepl is not None:
+        for repl in args.idrepl:
+            config_block += f"REPL_ID = {repl}\n"
+
+    args.behavior = "return" if args.behavior == "ret" else "replace"
+    config_block += f"BEHAVIOR = {args.behavior}\n"
+
+    options = [
+        args.uidrepl, args.params, args.onload, args.watch, args.minify, args.ictag,
+        args.mctag, args.entdec
+    ]
+    config_options = [
+        "UN_REPL_ID", "PARAMS", "ONLOAD", "WATCH", "MINIFY_CODE", "ALLOW_ANYTHING_IN_CLOSE_TAGS",
+        "IGNORE_MISMATCHING_CLOSING_TAGS", "AUTOMATICALLY_DECODE_HTML_ENTITIES"
+    ]
+
+    for option, config_option in zip(options, config_options):
+        if option is None:
+            continue
+
+        if option == "yes":
+            option = "True"
+        elif option == "no":
+            option = "False"
+
+        config_block += f"{config_option} = {option}\n"
+
+    # print(config_block)
+
+    return _parse_block(config_block)
