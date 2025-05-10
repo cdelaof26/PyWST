@@ -172,6 +172,14 @@ Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
 
+#### v0.0.9-1 Minor fixes
+- Fixed unhandled `AssertionError`
+- Fixed `Specified path is not a config file` when a config 
+  file is given
+- PyWST won't create js files unless some code generation is done
+- Handled edge case when the file to process doesn't have 
+  a suffix (file extension)
+
 #### v0.0.9 CLI arguments and fixes
 
 #### v0.0.8 Additional configuration and fixes

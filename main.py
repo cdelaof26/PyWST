@@ -17,10 +17,10 @@ def process_html(_file: Path, config: Optional[dict] = None):
     try:
         start_time = time.time()
 
-        js_name = _file.name.replace(_file.suffix, ".js")
+        js_name = _file.name.replace(_file.suffix, ".js") if _file.suffix else f"{_file.name}.js"
+        js = transcribe_html(_file, config)
+        js.minify = utilities.MINIFY_CODE
         with open(_file.with_name(js_name), "w") as f:
-            js = transcribe_html(_file, config)
-            js.minify = utilities.MINIFY_CODE
             f.write(str(js))
 
         end_time = time.time()
@@ -38,6 +38,10 @@ def process_html(_file: Path, config: Optional[dict] = None):
         if utilities.IGNORE_MISMATCHING_CLOSING_TAGS:
             logging.warning("This error might be caused by IGNORE_MISMATCHING_CLOSING_TAGS")
         logging.fatal(e.__str__())
+        # raise  # debug
+    except AssertionError:
+        logging.info("Error produced in " + str(_file.resolve()))
+        logging.fatal("Specified file doesn't contain valid HTML data")
         # raise  # debug
 
 
@@ -177,13 +181,13 @@ if __name__ == "__main__":
     read_config = arguments.config
     amount_of_files = len(arguments.file)
     if amount_of_files != 1 and read_config:
-        logging.fatal("Only one config file can be specified")
+        logging.fatal("Only one config file can be processed at a time")
         exit(1)
 
     if read_config:
-        file = Path()
+        file = Path(arguments.file[0])
         if not file.exists():
-            logging.fatal(f"The specified route '{file}' doesn't exist")
+            logging.fatal(f"File '{file}' doesn't exist")
             exit(1)
 
         if file.is_dir():
@@ -196,8 +200,8 @@ if __name__ == "__main__":
     try:
         config_args = utilities.args_to_config(arguments)
         # print(config_args)
-    except ValueError as e:
-        logging.fatal(e.__str__())
+    except ValueError as ex:
+        logging.fatal(ex.__str__())
         # raise  # debug
         exit(1)
 
