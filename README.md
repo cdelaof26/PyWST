@@ -172,6 +172,11 @@ Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
 
+#### v0.0.9-2 Fixes
+- Reduced thread overhead
+- Fixed bug where two files with similar name 
+  would interfere with each other. 
+
 #### v0.0.9-1 Minor fixes
 - Fixed unhandled `AssertionError`
 - Fixed `Specified path is not a config file` when a config 

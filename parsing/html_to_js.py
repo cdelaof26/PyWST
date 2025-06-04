@@ -183,10 +183,10 @@ def _transcribe_to_js(
         defined_active_script = True
         js.append_all([
             f"function {file_name}()" " {", "let currentScript;",
-            "const html_scripts = document.querySelectorAll('script');",
-            "for (let _i = 0; _i < html_scripts.length; _i++) " "{",
-            f"if (/.*{file_name}\\.js/g.test(html_scripts[_i].src)) " "{",
-            "currentScript = html_scripts[_i];", "break;", "}", "}"
+            "const htmlScripts = document.querySelectorAll('script');",
+            "for (let __i = 0; __i < htmlScripts.length; __i++) " "{",
+            f"if (/(.*[/\\\]{file_name}\\.js)|(^{file_name}\\.js)/g.test(htmlScripts[__i].src)) " "{",
+            "currentScript = htmlScripts[__i];", "break;", "}", "}"
         ])
 
         for p in params[0]:

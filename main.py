@@ -10,7 +10,6 @@ import time
 
 _lock = threading.Lock()
 _observers = []
-_threads = []
 
 
 def process_html(_file: Path, config: Optional[dict] = None):
@@ -97,16 +96,11 @@ def watch_files(block: dict):
     observer.schedule(event_handler, block["PATH"], recursive=True)
     _observers.append(observer)
     observer.start()
-    observer.join()
 
 
 def process_config_block(block: dict):
-    global _threads
-
     if "WATCH" in block and block["WATCH"]:
-        t = threading.Thread(target=watch_files, args=(block,))
-        t.start()
-        _threads.append(t)
+        watch_files(block)
         return
 
     utilities.update_properties(block)
@@ -120,12 +114,12 @@ def process_config_block(block: dict):
             block["PARAMS"].append(block["PARAMS"].pop(0))
 
 
-def wait_threads():
-    global _threads, _observers
-    if _threads:
+def wait_observers():
+    global _observers
+    if _observers:
         try:
-            for t in _threads:
-                t.join()
+            for obs in _observers:
+                obs.join()
         except KeyboardInterrupt:
             pass
         finally:
@@ -145,7 +139,7 @@ def process_config(_file: Path):
     for block in config_data:
         process_config_block(block)
 
-    wait_threads()
+    wait_observers()
 
 
 if __name__ == "__main__":
@@ -206,4 +200,4 @@ if __name__ == "__main__":
         exit(1)
 
     process_config_block(config_args)
-    wait_threads()
+    wait_observers()
