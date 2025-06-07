@@ -70,7 +70,7 @@ def watch_files(block: dict):
         utilities.update_properties(block)
         _f = Path(src_path).resolve()
         if _f.suffix == ".html" and (any_file or _f in block["FILE"]):
-            if "REPL_ID" in block:
+            if "REPL_ID" in block and not any_file:
                 f_index = block["FILE"].index(_f)
                 block["FILE"].insert(0, block["FILE"].pop(f_index))
                 block["REPL_ID"].insert(0, block["REPL_ID"].pop(f_index))

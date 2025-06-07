@@ -172,10 +172,14 @@ Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
 
-#### v0.0.9-2 Fixes
+#### v0.0.9-3 Bug fixes
 - Reduced thread overhead
 - Fixed bug where two files with similar name 
-  would interfere with each other. 
+  would interfere with each other.
+- Fixed bug that would crash the watch thread when
+  creating a new file under certain conditions.
+- Fixed bug where tag data was discarded when it did 
+  not contain any letters or digits.
 
 #### v0.0.9-1 Minor fixes
 - Fixed unhandled `AssertionError`

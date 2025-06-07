@@ -185,7 +185,7 @@ def _transcribe_to_js(
             f"function {file_name}()" " {", "let currentScript;",
             "const htmlScripts = document.querySelectorAll('script');",
             "for (let __i = 0; __i < htmlScripts.length; __i++) " "{",
-            f"if (/(.*[/\\\]{file_name}\\.js)|(^{file_name}\\.js)/g.test(htmlScripts[__i].src)) " "{",
+            fr"if (/(.*[/\\]{file_name}\.js)|(^{file_name}\.js)/g.test(htmlScripts[__i].src)) " "{",
             "currentScript = htmlScripts[__i];", "break;", "}", "}"
         ])
 
@@ -232,7 +232,7 @@ def _transcribe_to_js(
             continue
 
         if token.token_type == HTMLTokenType.DATA:
-            if re.sub(r"\W+", "", token.lexeme):
+            if token.lexeme.strip():
                 js.append_line(append_text(parent_stack[-1], token.lexeme, params and params[0]))
             continue
 
