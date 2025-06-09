@@ -172,7 +172,7 @@ Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
 
 ### Versioning
 
-#### v0.0.9-3 Bug fixes
+#### v0.0.9-4 Bug fixes
 - Reduced thread overhead
 - Fixed bug where two files with similar name 
   would interfere with each other.
@@ -180,6 +180,8 @@ Licensed under the [MIT License](LICENSE). Copyright 2025 @cdelaof26.
   creating a new file under certain conditions.
 - Fixed bug where tag data was discarded when it did 
   not contain any letters or digits.
+- Fixed bug that mixed up `PARAMS` between all 
+  the files in a config block.
 
 #### v0.0.9-1 Minor fixes
 - Fixed unhandled `AssertionError`

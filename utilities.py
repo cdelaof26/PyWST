@@ -279,7 +279,7 @@ def parse_config(_file: Path) -> list[dict]:
 
 
 def args_to_config(args: Namespace) -> Optional[dict]:
-    config_block = "[ConfigArgs]\n"
+    config_block = "[CLIArgs]\n"
 
     file0 = Path(args.file[0])
 
